@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # Default SQLite standalone profile
+  hub:
+    build: .
+    container_name: life-dashboard-hub
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SESSION_SECRET=change-this-to-a-secure-random-secret
+      - TZ=UTC
+    volumes:
+      - life-dashboard-data:/data
+
+  # PostgreSQL optional profile
+  postgres:
+    profiles: ["postgres"]
+    image: postgres:16-alpine
+    container_name: life-dashboard-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=lifedashboard
+      - POSTGRES_USER=dashboard
+      - POSTGRES_PASSWORD=dashboardsecret
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  hub-pg:
+    profiles: ["postgres"]
+    build: .
+    container_name: life-dashboard-hub-pg
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://dashboard:dashboardsecret@postgres:5432/lifedashboard?sslmode=disable
+      - SESSION_SECRET=change-this-to-a-secure-random-secret
+      - TZ=UTC
+
+volumes:
+  life-dashboard-data:
+  postgres-data:

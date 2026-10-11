@@ -1,0 +1,1287 @@
+basePath: /api/v1
+definitions:
+  handlers.AppUsageSummary:
+    properties:
+      app_name:
+        type: string
+      minutes:
+        type: integer
+      package_name:
+        type: string
+    type: object
+  handlers.AuthInfoResponse:
+    properties:
+      local:
+        type: boolean
+      oidc:
+        $ref: '#/definitions/handlers.OIDCInfoResponse'
+    type: object
+  handlers.CreateChildRequest:
+    properties:
+      display_name:
+        type: string
+      password:
+        type: string
+    type: object
+  handlers.CreateDeviceRequest:
+    properties:
+      display_name:
+        type: string
+      label:
+        type: string
+    type: object
+  handlers.CreateFamilyRequest:
+    properties:
+      name:
+        type: string
+    type: object
+  handlers.DeviceCredentialsResponse:
+    properties:
+      collector_version:
+        type: string
+      created_at:
+        type: string
+      device_model:
+        type: string
+      display_name:
+        type: string
+      id:
+        type: integer
+      label:
+        type: string
+      last_sync_at:
+        type: string
+      last_sync_error:
+        type: string
+      last_sync_source:
+        type: string
+      pairing_qr:
+        type: string
+      revoked_at:
+        type: string
+      status:
+        type: string
+      user_id:
+        type: integer
+      webhook_secret:
+        type: string
+      webhook_url:
+        type: string
+    type: object
+  handlers.DeviceDaySummary:
+    properties:
+      date:
+        type: string
+      device_id:
+        type: integer
+      device_model:
+        type: string
+      filtered_screen_time_minutes:
+        type: integer
+      total_screen_time_minutes:
+        type: integer
+    type: object
+  handlers.DeviceResponse:
+    properties:
+      collector_version:
+        type: string
+      created_at:
+        type: string
+      device_model:
+        type: string
+      display_name:
+        type: string
+      id:
+        type: integer
+      label:
+        type: string
+      last_sync_at:
+        type: string
+      last_sync_error:
+        type: string
+      last_sync_source:
+        type: string
+      revoked_at:
+        type: string
+      status:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  handlers.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  handlers.FamilyMemberResponse:
+    properties:
+      display_name:
+        type: string
+      email:
+        type: string
+      joined_at:
+        type: string
+      role:
+        type: string
+      sharing:
+        type: string
+      status:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  handlers.FamilyResponse:
+    properties:
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      id:
+        type: integer
+      members:
+        items:
+          $ref: '#/definitions/handlers.FamilyMemberResponse'
+        type: array
+      name:
+        type: string
+      role:
+        type: string
+      sharing:
+        type: string
+    type: object
+  handlers.HealthDailySummary:
+    properties:
+      calories:
+        type: number
+      date:
+        type: string
+      distance_meters:
+        type: number
+      steps:
+        type: integer
+    type: object
+  handlers.InvitationResponse:
+    properties:
+      expires_at:
+        type: string
+      family_id:
+        type: integer
+      id:
+        type: integer
+      invite_token:
+        type: string
+      invited_email:
+        type: string
+      role:
+        type: string
+      status:
+        type: string
+    type: object
+  handlers.InviteMemberRequest:
+    properties:
+      email:
+        type: string
+      role:
+        description: parent, adult, child
+        type: string
+    type: object
+  handlers.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  handlers.MessageResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  handlers.OIDCInfoResponse:
+    properties:
+      display_name:
+        type: string
+      enabled:
+        type: boolean
+      login_url:
+        type: string
+    type: object
+  handlers.RegisterRequest:
+    properties:
+      display_name:
+        type: string
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  handlers.ScreenTimeDailyResponse:
+    properties:
+      days:
+        items:
+          $ref: '#/definitions/handlers.ScreenTimeDaySummary'
+        type: array
+      device_usage:
+        items:
+          $ref: '#/definitions/handlers.DeviceDaySummary'
+        type: array
+      from:
+        type: string
+      to:
+        type: string
+    type: object
+  handlers.ScreenTimeDaySummary:
+    properties:
+      date:
+        type: string
+      device_count:
+        type: integer
+      filtered_screen_time_minutes:
+        type: integer
+      total_screen_time_minutes:
+        description: Total reported device usage across devices
+        type: integer
+    type: object
+  handlers.SleepSessionSummary:
+    properties:
+      duration_minutes:
+        type: number
+      end_time:
+        type: string
+      record_id:
+        type: string
+      start_time:
+        type: string
+      wake_date:
+        type: string
+    type: object
+  handlers.SyncStatusItem:
+    properties:
+      collector_version:
+        type: string
+      device_id:
+        type: integer
+      device_model:
+        type: string
+      display_name:
+        type: string
+      is_stale:
+        type: boolean
+      last_sync_at:
+        type: string
+      last_sync_error:
+        type: string
+      last_sync_source:
+        type: string
+      status:
+        type: string
+    type: object
+  handlers.SyncStatusResponse:
+    properties:
+      devices:
+        items:
+          $ref: '#/definitions/handlers.SyncStatusItem'
+        type: array
+    type: object
+  handlers.TrendSummary:
+    properties:
+      calories_total:
+        type: number
+      days_count:
+        type: integer
+      distance_total:
+        type: number
+      period:
+        type: string
+      steps_avg:
+        type: number
+      steps_total:
+        type: integer
+    type: object
+  handlers.UpdateDeviceRequest:
+    properties:
+      display_name:
+        type: string
+    type: object
+  handlers.UpdateSharingRequest:
+    properties:
+      sharing:
+        description: none, summary, detailed
+        type: string
+    type: object
+  handlers.UpdateUserRequest:
+    properties:
+      current_password:
+        type: string
+      display_name:
+        type: string
+      new_password:
+        type: string
+      timezone:
+        type: string
+    type: object
+  handlers.UserResponse:
+    properties:
+      auth_method:
+        type: string
+      created_at:
+        type: string
+      display_name:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      status:
+        type: string
+      timezone:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: Self-hosted Go backend for receiving Life Dashboard Companion payloads
+    and reporting.
+  title: Life Dashboard Hub API
+  version: "1.0"
+paths:
+  /auth/info:
+    get:
+      description: Returns local and OIDC configuration info for the login view
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.AuthInfoResponse'
+      summary: Get available authentication methods
+      tags:
+      - auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate with email and password to receive a session cookie
+      parameters:
+      - description: Login payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Invalid credentials
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Login with local credentials
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      description: Revokes session and clears session cookie
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+      summary: Logout current session
+      tags:
+      - auth
+  /auth/oidc/callback:
+    get:
+      description: Processes callback from OIDC identity provider
+      responses:
+        "302":
+          description: Found
+        "400":
+          description: Invalid state or code
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: OIDC SSO Callback
+      tags:
+      - auth
+  /auth/oidc/login:
+    get:
+      description: Redirects user to OIDC identity provider
+      responses:
+        "307":
+          description: Temporary Redirect
+        "404":
+          description: OIDC not enabled
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Initiate OIDC SSO login
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a local account with email and password
+      parameters:
+      - description: Registration payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Email already registered
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Register a new user
+      tags:
+      - auth
+  /data:
+    delete:
+      description: Deletes records, payloads, buckets, and tombstones for specified
+        scope
+      parameters:
+      - description: From date YYYY-MM-DD
+        in: query
+        name: from
+        type: string
+      - description: To date YYYY-MM-DD
+        in: query
+        name: to
+        type: string
+      - description: Device ID
+        in: query
+        name: device_id
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+      summary: Delete user data within range
+      tags:
+      - data
+  /data/export:
+    get:
+      description: Export usage and health data in CSV or JSON format
+      parameters:
+      - description: From date YYYY-MM-DD
+        in: query
+        name: from
+        type: string
+      - description: To date YYYY-MM-DD
+        in: query
+        name: to
+        type: string
+      - description: csv or json (default json)
+        in: query
+        name: format
+        type: string
+      produces:
+      - text/csv
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Export user records
+      tags:
+      - data
+  /devices:
+    get:
+      description: Returns all registered devices and their sync status
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.DeviceResponse'
+            type: array
+      summary: List all devices for the current user
+      tags:
+      - devices
+    post:
+      consumes:
+      - application/json
+      description: Create a device registration and return webhook credentials and
+        QR pairing URI
+      parameters:
+      - description: Device details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateDeviceRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.DeviceCredentialsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Label already in use
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Register a new device
+      tags:
+      - devices
+  /devices/{id}:
+    delete:
+      description: Cascades delete across device records, payloads, buckets, and tombstones
+      parameters:
+      - description: Device ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Delete a device and associated data
+      tags:
+      - devices
+    get:
+      description: Get a specific device by ID
+      parameters:
+      - description: Device ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.DeviceResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get device details
+      tags:
+      - devices
+    patch:
+      consumes:
+      - application/json
+      description: Update display name for a device
+      parameters:
+      - description: Device ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateDeviceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.DeviceResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Update device details
+      tags:
+      - devices
+  /devices/{id}/regenerate:
+    post:
+      description: Invalidates old token/secret and issues new webhook URL and QR
+        pairing link
+      parameters:
+      - description: Device ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.DeviceCredentialsResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Regenerate device credentials
+      tags:
+      - devices
+  /devices/{id}/revoke:
+    post:
+      description: Marks a device as revoked so its token is no longer accepted for
+        webhooks
+      parameters:
+      - description: Device ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.DeviceResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Revoke device access
+      tags:
+      - devices
+  /families:
+    get:
+      description: Returns all families current user belongs to
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.FamilyResponse'
+            type: array
+      summary: List user's families
+      tags:
+      - families
+    post:
+      consumes:
+      - application/json
+      description: Creates a family and makes current user admin
+      parameters:
+      - description: Family details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateFamilyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.FamilyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Create a new family group
+      tags:
+      - families
+  /families/{familyId}/leave:
+    post:
+      description: Member leaves family
+      parameters:
+      - description: Family ID
+        in: path
+        name: familyId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+      summary: Leave a family
+      tags:
+      - families
+  /families/{familyId}/members/{userId}:
+    delete:
+      description: Admin removes a member
+      parameters:
+      - description: Family ID
+        in: path
+        name: familyId
+        required: true
+        type: integer
+      - description: Target User ID
+        in: path
+        name: userId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Remove a member from family
+      tags:
+      - families
+  /families/{familyId}/members/{userId}/reports/health/daily:
+    get:
+      description: View member health totals with sharing authorization check
+      parameters:
+      - description: Family ID
+        in: path
+        name: familyId
+        required: true
+        type: integer
+      - description: Target User ID
+        in: path
+        name: userId
+        required: true
+        type: integer
+      - description: From date
+        in: query
+        name: from
+        type: string
+      - description: To date
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.HealthDailySummary'
+            type: array
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get family member health totals
+      tags:
+      - families
+  /families/{familyId}/members/{userId}/reports/screen-time/apps:
+    get:
+      description: View member app usage with sharing authorization check
+      parameters:
+      - description: Family ID
+        in: path
+        name: familyId
+        required: true
+        type: integer
+      - description: Target User ID
+        in: path
+        name: userId
+        required: true
+        type: integer
+      - description: From date
+        in: query
+        name: from
+        type: string
+      - description: To date
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.AppUsageSummary'
+            type: array
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get family member app usage
+      tags:
+      - families
+  /families/{familyId}/members/{userId}/reports/screen-time/daily:
+    get:
+      description: View member screen time with sharing authorization check
+      parameters:
+      - description: Family ID
+        in: path
+        name: familyId
+        required: true
+        type: integer
+      - description: Target User ID
+        in: path
+        name: userId
+        required: true
+        type: integer
+      - description: From date
+        in: query
+        name: from
+        type: string
+      - description: To date
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ScreenTimeDailyResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get family member daily screen time
+      tags:
+      - families
+  /families/{familyId}/members/{userId}/sharing:
+    patch:
+      consumes:
+      - application/json
+      description: Update sharing level (adult controls own; parent/admin can control
+        child)
+      parameters:
+      - description: Family ID
+        in: path
+        name: familyId
+        required: true
+        type: integer
+      - description: Target User ID
+        in: path
+        name: userId
+        required: true
+        type: integer
+      - description: Sharing level
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateSharingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Update sharing level
+      tags:
+      - families
+  /families/{id}:
+    get:
+      description: Returns family information and member roster
+      parameters:
+      - description: Family ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.FamilyResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get family details
+      tags:
+      - families
+  /families/{id}/children:
+    post:
+      consumes:
+      - application/json
+      description: Creates local account without email requirement (admin/parent only)
+      parameters:
+      - description: Family ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Child account details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateChildRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.UserResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Create child account within family
+      tags:
+      - families
+  /families/{id}/invitations:
+    post:
+      consumes:
+      - application/json
+      description: Creates an invitation token (admin only)
+      parameters:
+      - description: Family ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Invitation details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.InviteMemberRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.InvitationResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Invite a member to the family
+      tags:
+      - families
+  /invitations/{token}/accept:
+    post:
+      description: Join family using invitation token
+      parameters:
+      - description: Invitation token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Accept a family invitation
+      tags:
+      - families
+  /reports/health/daily:
+    get:
+      description: Daily aggregated steps, distance, and calories
+      parameters:
+      - description: From date YYYY-MM-DD
+        in: query
+        name: from
+        type: string
+      - description: To date YYYY-MM-DD
+        in: query
+        name: to
+        type: string
+      - description: Filter by device ID
+        in: query
+        name: device_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.HealthDailySummary'
+            type: array
+      summary: Get health daily totals
+      tags:
+      - reports
+  /reports/health/sleep:
+    get:
+      description: Sleep duration and sessions assigned to wake date
+      parameters:
+      - description: From date YYYY-MM-DD
+        in: query
+        name: from
+        type: string
+      - description: To date YYYY-MM-DD
+        in: query
+        name: to
+        type: string
+      - description: Filter by device ID
+        in: query
+        name: device_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.SleepSessionSummary'
+            type: array
+      summary: Get sleep reports
+      tags:
+      - reports
+  /reports/health/trends:
+    get:
+      description: Aggregates daily totals into weekly or monthly trends
+      parameters:
+      - description: weekly or monthly (default weekly)
+        in: query
+        name: period
+        type: string
+      - description: From date YYYY-MM-DD
+        in: query
+        name: from
+        type: string
+      - description: To date YYYY-MM-DD
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.TrendSummary'
+            type: array
+      summary: Get health activity trends
+      tags:
+      - reports
+  /reports/screen-time/apps:
+    get:
+      description: Aggregates foreground app minutes from screen time records
+      parameters:
+      - description: From date YYYY-MM-DD
+        in: query
+        name: from
+        type: string
+      - description: To date YYYY-MM-DD
+        in: query
+        name: to
+        type: string
+      - description: Filter by device ID
+        in: query
+        name: device_id
+        type: string
+      - description: Top N apps (default 20)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.AppUsageSummary'
+            type: array
+      summary: Get app usage breakdown
+      tags:
+      - reports
+  /reports/screen-time/daily:
+    get:
+      description: Aggregates daily screen time per-device and combined total reported
+        device usage
+      parameters:
+      - description: From date YYYY-MM-DD
+        in: query
+        name: from
+        type: string
+      - description: To date YYYY-MM-DD
+        in: query
+        name: to
+        type: string
+      - description: Filter by device ID
+        in: query
+        name: device_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ScreenTimeDailyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get daily screen time report
+      tags:
+      - reports
+  /reports/sync-status:
+    get:
+      description: Returns sync health indicators and stale flags
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SyncStatusResponse'
+      summary: Get sync status across all devices
+      tags:
+      - reports
+  /users/me:
+    get:
+      description: Returns user profile including auth_method
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.UserResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get current authenticated user profile
+      tags:
+      - users
+    patch:
+      consumes:
+      - application/json
+      description: Update display name, timezone, or change password
+      parameters:
+      - description: Update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Update user profile
+      tags:
+      - users
+  /webhooks/v1/devices/{deviceToken}:
+    post:
+      consumes:
+      - application/json
+      description: Receive and process sync payload from Life Dashboard Companion
+      parameters:
+      - description: Device token
+        in: path
+        name: deviceToken
+        required: true
+        type: string
+      - description: HMAC-SHA256 signature (sha256=<hex>)
+        in: header
+        name: X-Signature
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid payload
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Device not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "411":
+          description: Length required
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "413":
+          description: Payload too large
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Ingest webhook payload from device
+      tags:
+      - webhooks
+swagger: "2.0"
