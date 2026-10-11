@@ -17,8 +17,8 @@ import (
 	"gorm.io/gorm"
 )
 
-var nameRegex = regexp.MustCompile(`<h1[^>]*>.*?itemprop="name">([^<]+)<`)
-var fallbackNameRegex = regexp.MustCompile(`<h1[^>]*>([^<]+)</h1>`)
+var nameRegex = regexp.MustCompile(`itemprop="name"[^>]*>([^<]+)<`)
+var fallbackNameRegex = regexp.MustCompile(`<h1[^>]*>.*?<span[^>]*>([^<]+)</span>.*?</h1>`)
 
 // Known common system packages fallback
 var commonPackages = map[string]string{
@@ -161,7 +161,7 @@ func (pr *PackageResolver) fetchPlayStoreName(pkg string) (string, error) {
 		return "", fmt.Errorf("http status %d", resp.StatusCode)
 	}
 
-	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 512*1024))
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 4*1024*1024))
 	if err != nil {
 		return "", err
 	}
