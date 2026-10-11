@@ -46,7 +46,7 @@ func setupFamilyTestApp(t *testing.T) (*fiber.App, *database.DB, *auth.SessionSe
 	api := app.Group("/api/v1")
 	protected := api.Group("", middleware.RequireAuth(sessionService))
 
-	reportsHandler := NewReportsHandler(db)
+	reportsHandler := NewReportsHandler(db, nil)
 	familiesHandler := NewFamiliesHandler(db, reportsHandler)
 
 	familiesGroup := protected.Group("/families")

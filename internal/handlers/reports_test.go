@@ -66,7 +66,7 @@ func setupReportsTestApp(t *testing.T) (*fiber.App, *database.DB, *models.User, 
 	api := app.Group("/api/v1")
 	protected := api.Group("", middleware.RequireAuth(sessionService))
 
-	reportsHandler := NewReportsHandler(db)
+	reportsHandler := NewReportsHandler(db, nil)
 	reportsGroup := protected.Group("/reports")
 	reportsGroup.Get("/screen-time/daily", reportsHandler.GetScreenTimeDaily)
 	reportsGroup.Get("/screen-time/apps", reportsHandler.GetScreenTimeApps)

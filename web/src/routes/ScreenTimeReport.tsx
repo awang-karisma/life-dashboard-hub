@@ -128,6 +128,20 @@ export function ScreenTimeReport() {
     if (!data || !data.days) return 0;
     return data.days.reduce((acc, curr) => acc + curr.total_screen_time_minutes, 0);
   };
+  const handleRename = async (pkg: string, currentName: string) => {
+    const newName = prompt(`Enter custom name for ${pkg}:`, currentName);
+    if (!newName || newName.trim() === '' || newName === currentName) return;
+    try {
+      await ApiClient.post('/api/v1/reports/screen-time/aliases', {
+        package_name: pkg,
+        app_name: newName.trim(),
+      });
+      await loadData();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to save app alias');
+    }
+  };
+
 
   return (
     <div>
@@ -204,6 +218,7 @@ export function ScreenTimeReport() {
                 packageName={app.package_name}
                 minutes={app.minutes}
                 maxMinutes={maxAppMinutes()}
+                onRename={handleRename}
               />
             )}
           </For>

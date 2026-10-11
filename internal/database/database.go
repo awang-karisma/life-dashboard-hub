@@ -78,6 +78,7 @@ func Open(cfg *config.Config) (*DB, error) {
 		&models.FamilyMembership{},
 		&models.Invitation{},
 		&models.Session{},
+		&models.AppMetadata{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("auto-migration failed: %w", err)
@@ -119,6 +120,7 @@ func OpenTestDB(databaseURL string) (*DB, error) {
 		&models.FamilyMembership{},
 		&models.Invitation{},
 		&models.Session{},
+		&models.AppMetadata{},
 	); err != nil {
 		return nil, err
 	}

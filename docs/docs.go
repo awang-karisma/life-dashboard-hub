@@ -1168,6 +1168,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/reports/screen-time/aliases": {
+            "post": {
+                "description": "Overrides the app name displayed across dashboards",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reports"
+                ],
+                "summary": "Set custom display name for an app package",
+                "parameters": [
+                    {
+                        "description": "Alias details",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.UpdateAppAliasRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/reports/screen-time/apps": {
             "get": {
                 "description": "Aggregates foreground app minutes from screen time records",
@@ -1891,6 +1931,17 @@ const docTemplate = `{
                 },
                 "steps_total": {
                     "type": "integer"
+                }
+            }
+        },
+        "handlers.UpdateAppAliasRequest": {
+            "type": "object",
+            "properties": {
+                "app_name": {
+                    "type": "string"
+                },
+                "package_name": {
+                    "type": "string"
                 }
             }
         },

@@ -130,8 +130,15 @@ func ParsePayload(deviceID uint, bodyBytes []byte, serverTZ *time.Location) (*Pa
 	// 2. Process Screen Time payloads
 	if result.Source == "screen_time" {
 		result.Kind = "screen_time"
-		// Check for multiple days under "days"
-		if daysList, ok := raw["days"].([]interface{}); ok && len(daysList) > 0 {
+		// Companion app sends days either under "screen_time" or "days"
+		var daysList []interface{}
+		if stList, ok := raw["screen_time"].([]interface{}); ok && len(stList) > 0 {
+			daysList = stList
+		} else if dList, ok := raw["days"].([]interface{}); ok && len(dList) > 0 {
+			daysList = dList
+		}
+
+		if len(daysList) > 0 {
 			for _, dayObj := range daysList {
 				if dayMap, ok := dayObj.(map[string]interface{}); ok {
 					rec := parseScreenTimeDay(deviceID, result, dayMap, loc, now)
