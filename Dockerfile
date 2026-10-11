@@ -1,0 +1,34 @@
+# Multi-stage Dockerfile for Life Dashboard Hub
+
+# Stage 1: Build SolidJS Frontend
+FROM node:22-alpine AS frontend-builder
+WORKDIR /web
+COPY web/package.json ./
+RUN npm install
+COPY web/ ./
+RUN npm run build
+
+# Stage 2: Build Go Server
+FROM golang:1.24-alpine AS backend-builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . ./
+# Copy frontend build output into embed path
+RUN mkdir -p cmd/server/dist && cp -r /web/dist/* cmd/server/dist/
+RUN CGO_ENABLED=0 GOOS=linux go build -tags embed_frontend -ldflags="-s -w" -o /app/life-dashboard-hub ./cmd/server
+
+# Stage 3: Minimal runtime image
+FROM alpine:3.21
+RUN apk --no-cache add ca-certificates tzdata
+WORKDIR /app
+
+COPY --from=backend-builder /app/life-dashboard-hub /app/life-dashboard-hub
+
+ENV DATA_DIR=/data \
+    LISTEN_ADDR=:8080
+
+VOLUME ["/data"]
+EXPOSE 8080
+
+ENTRYPOINT ["/app/life-dashboard-hub"]

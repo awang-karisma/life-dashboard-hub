@@ -1,0 +1,19 @@
+lifedashboard.example.com {
+    handle /api/v1/* {
+        reverse_proxy localhost:8080
+    }
+
+    handle /webhooks/v1/* {
+        reverse_proxy localhost:8080
+    }
+
+    handle /swagger/* {
+        reverse_proxy localhost:8080
+    }
+
+    handle {
+        root * /var/www/life-dashboard-hub
+        try_files {path} /index.html
+        file_server
+    }
+}
