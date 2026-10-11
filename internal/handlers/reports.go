@@ -12,14 +12,19 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/awang-karisma/life-dashboard-hub/internal/database"
 	"github.com/awang-karisma/life-dashboard-hub/internal/models"
+	"github.com/awang-karisma/life-dashboard-hub/internal/resolver"
 )
 
 type ReportsHandler struct {
-	DB *database.DB
+	DB       *database.DB
+	Resolver *resolver.PackageResolver
 }
 
-func NewReportsHandler(db *database.DB) *ReportsHandler {
-	return &ReportsHandler{DB: db}
+func NewReportsHandler(db *database.DB, res *resolver.PackageResolver) *ReportsHandler {
+	return &ReportsHandler{
+		DB:       db,
+		Resolver: res,
+	}
 }
 
 // Helper to get allowed device IDs for user
@@ -295,9 +300,15 @@ func (h *ReportsHandler) GetScreenTimeApps(c fiber.Ctx) error {
 
 			pkgName, _ := appMap["package_name"].(string)
 			if pkgName == "" {
+				pkgName, _ = appMap["package"].(string)
+			}
+			if pkgName == "" {
 				continue
 			}
 			appName, _ := appMap["app_name"].(string)
+			if appName == "" {
+				appName, _ = appMap["name"].(string)
+			}
 			if appName == "" {
 				appName = pkgName
 			}
@@ -317,11 +328,33 @@ func (h *ReportsHandler) GetScreenTimeApps(c fiber.Ctx) error {
 		}
 	}
 
-	result := make([]AppUsageSummary, 0, len(appTotals))
-	for _, summary := range appTotals {
-		result = append(result, *summary)
+	// Resolve package names using DB / resolver
+	pkgList := make([]string, 0, len(appTotals))
+	for pkg := range appTotals {
+		pkgList = append(pkgList, pkg)
 	}
 
+	var resolved map[string]models.AppMetadata
+	if h.Resolver != nil {
+		resolved = h.Resolver.GetResolvedNames(pkgList)
+	}
+
+	result := make([]AppUsageSummary, 0, len(appTotals))
+	for pkg, summary := range appTotals {
+		if meta, found := resolved[pkg]; found && meta.AppName != "" {
+			summary.AppName = meta.AppName
+		} else {
+			// Not yet resolved locally: use humanized fallback immediately
+			if summary.AppName == "" || summary.AppName == pkg {
+				summary.AppName = resolver.FormatFallbackName(pkg)
+			}
+			if h.Resolver != nil {
+				// Fire non-blocking background queue to fetch Play Store metadata
+				h.Resolver.QueuePackage(pkg)
+			}
+		}
+		result = append(result, *summary)
+	}
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].Minutes > result[j].Minutes
 	})
@@ -331,6 +364,42 @@ func (h *ReportsHandler) GetScreenTimeApps(c fiber.Ctx) error {
 	}
 
 	return c.JSON(result)
+}
+
+type UpdateAppAliasRequest struct {
+	PackageName string `json:"package_name"`
+	AppName     string `json:"app_name"`
+}
+
+// SetAppAlias godoc
+// @Summary      Set custom display name for an app package
+// @Description  Overrides the app name displayed across dashboards
+// @Tags         reports
+// @Accept       json
+// @Produce      json
+// @Param        body body UpdateAppAliasRequest true "Alias details"
+// @Success      200 {object} MessageResponse
+// @Failure      400 {object} ErrorResponse
+// @Router       /reports/screen-time/aliases [post]
+func (h *ReportsHandler) SetAppAlias(c fiber.Ctx) error {
+	var req UpdateAppAliasRequest
+	if err := c.Bind().Body(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "invalid request body"})
+	}
+
+	req.PackageName = strings.TrimSpace(req.PackageName)
+	req.AppName = strings.TrimSpace(req.AppName)
+	if req.PackageName == "" || req.AppName == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "package_name and app_name are required"})
+	}
+
+	if h.Resolver != nil {
+		if err := h.Resolver.SetCustomOverride(req.PackageName, req.AppName); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: err.Error()})
+		}
+	}
+
+	return c.JSON(MessageResponse{Message: "app name updated successfully"})
 }
 
 // GetHealthDailyTotals godoc

@@ -1,29 +1,7 @@
 import { onMount, onCleanup, createEffect } from 'solid-js';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  LineElement,
-  PointElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-  ChartConfiguration,
-} from 'chart.js';
+import { Chart as ChartJS, registerables, ChartConfiguration } from 'chart.js';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  LineElement,
-  PointElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend
-);
+ChartJS.register(...registerables);
 
 interface ChartProps {
   config: ChartConfiguration;

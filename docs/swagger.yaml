@@ -298,6 +298,13 @@ definitions:
       steps_total:
         type: integer
     type: object
+  handlers.UpdateAppAliasRequest:
+    properties:
+      app_name:
+        type: string
+      package_name:
+        type: string
+    type: object
   handlers.UpdateDeviceRequest:
     properties:
       display_name:
@@ -1106,6 +1113,32 @@ paths:
               $ref: '#/definitions/handlers.TrendSummary'
             type: array
       summary: Get health activity trends
+      tags:
+      - reports
+  /reports/screen-time/aliases:
+    post:
+      consumes:
+      - application/json
+      description: Overrides the app name displayed across dashboards
+      parameters:
+      - description: Alias details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateAppAliasRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Set custom display name for an app package
       tags:
       - reports
   /reports/screen-time/apps:

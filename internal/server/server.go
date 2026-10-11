@@ -19,6 +19,7 @@ import (
 	"github.com/awang-karisma/life-dashboard-hub/internal/database"
 	"github.com/awang-karisma/life-dashboard-hub/internal/handlers"
 	"github.com/awang-karisma/life-dashboard-hub/internal/middleware"
+	"github.com/awang-karisma/life-dashboard-hub/internal/resolver"
 )
 
 type Server struct {
@@ -27,6 +28,7 @@ type Server struct {
 	DB             *database.DB
 	SessionService *auth.SessionService
 	OIDCClient     *auth.OIDCClient
+	Resolver       *resolver.PackageResolver
 }
 
 func New(cfg *config.Config, db *database.DB) *Server {
@@ -55,6 +57,7 @@ func New(cfg *config.Config, db *database.DB) *Server {
 		DB:             db,
 		SessionService: sessionService,
 		OIDCClient:     oidcClient,
+		Resolver:       resolver.NewPackageResolver(db),
 	}
 
 	s.setupRoutes()
@@ -108,10 +111,11 @@ func (s *Server) setupRoutes() {
 
 	// User profile handlers
 	// Reports handlers
-	reportsHandler := handlers.NewReportsHandler(s.DB)
+	reportsHandler := handlers.NewReportsHandler(s.DB, s.Resolver)
 	reportsGroup := protected.Group("/reports")
 	reportsGroup.Get("/screen-time/daily", reportsHandler.GetScreenTimeDaily)
 	reportsGroup.Get("/screen-time/apps", reportsHandler.GetScreenTimeApps)
+	reportsGroup.Post("/screen-time/aliases", reportsHandler.SetAppAlias)
 	reportsGroup.Get("/health/daily", reportsHandler.GetHealthDailyTotals)
 	reportsGroup.Get("/health/trends", reportsHandler.GetHealthTrends)
 	reportsGroup.Get("/health/sleep", reportsHandler.GetSleep)
