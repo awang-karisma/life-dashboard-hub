@@ -41,6 +41,7 @@ interface SleepSessionSummary {
 interface AppSummaryItem {
   package_name: string;
   app_name: string;
+  category?: string;
   minutes: number;
 }
 

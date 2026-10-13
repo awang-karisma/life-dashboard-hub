@@ -4,6 +4,8 @@ definitions:
     properties:
       app_name:
         type: string
+      category:
+        type: string
       minutes:
         type: integer
       package_name:

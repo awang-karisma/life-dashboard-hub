@@ -34,8 +34,63 @@ interface DailyReportResponse {
 interface AppUsage {
   package_name: string;
   app_name: string;
+  category: string;
   minutes: number;
 }
+
+const categoryDisplayName = (cat: string): string => {
+  const map: Record<string, string> = {
+    COMMUNICATION: 'Communication',
+    SOCIAL: 'Social',
+    VIDEO_PLAYERS: 'Video & Media',
+    ENTERTAINMENT: 'Entertainment',
+    MUSIC_AND_AUDIO: 'Music & Audio',
+    PRODUCTIVITY: 'Productivity',
+    GAME_STRATEGY: 'Games',
+    GAME_ARCADE: 'Games',
+    GAME_ACTION: 'Games',
+    GAME_CASUAL: 'Games',
+    GAME_PUZZLE: 'Games',
+    GAME_RACING: 'Games',
+    GAME_ROLE_PLAYING: 'Games',
+    GAME_SIMULATION: 'Games',
+    GAME_SPORTS: 'Games',
+    GAME_WORD: 'Games',
+    GAME_TRIVIA: 'Games',
+    GAME_CARD: 'Games',
+    GAME_BOARD: 'Games',
+    GAME_EDUCATIONAL: 'Games',
+    GAME_ADVENTURE: 'Games',
+    GAME_MUSIC: 'Games',
+    EDUCATION: 'Education',
+    BOOKS_AND_REFERENCE: 'Education',
+    FINANCE: 'Finance',
+    SHOPPING: 'Shopping',
+    HEALTH_AND_FITNESS: 'Health & Fitness',
+    FOOD_AND_DRINK: 'Food & Drink',
+    TRAVEL_AND_LOCAL: 'Travel & Maps',
+    MAPS_AND_NAVIGATION: 'Travel & Maps',
+    NEWS_AND_MAGAZINES: 'News',
+    PHOTOGRAPHY: 'Photography',
+    TOOLS: 'Utilities',
+    PERSONALIZATION: 'Utilities',
+    WEATHER: 'Utilities',
+    LIFESTYLE: 'Lifestyle',
+    DATING: 'Lifestyle',
+    PARENTING: 'Lifestyle',
+    SPORTS: 'Sports',
+    AUTO_AND_VEHICLES: 'Utilities',
+    HOUSE_AND_HOME: 'Utilities',
+    ART_AND_DESIGN: 'Creativity',
+    COMICS: 'Entertainment',
+    BEAUTY: 'Lifestyle',
+    EVENTS: 'Lifestyle',
+    LIBRARIES_AND_DEMO: 'Utilities',
+    BUSINESS: 'Productivity',
+    MEDICAL: 'Health & Fitness',
+  };
+  return map[cat] || 'Other';
+};
 
 interface DeviceOption {
   id: number;
@@ -178,53 +233,22 @@ export function ScreenTimeReport() {
 
   const categories = () => {
     const list = appsData();
-    const totals: Record<string, number> = {
-      'Work & Dev': 0,
-      'Media & Entertainment': 0,
-      'Learning': 0,
-      'Communication': 0,
-      'Utilities & Other': 0,
-    };
+    const totals: Record<string, number> = {};
     let grandTotal = 0;
 
     for (const a of list) {
       grandTotal += a.minutes;
-      const pkg = a.package_name.toLowerCase();
-      if (
-        pkg.includes('slack') ||
-        pkg.includes('microsoft') ||
-        pkg.includes('github') ||
-        pkg.includes('obsidian') ||
-        pkg.includes('notion')
-      ) {
-        totals['Work & Dev'] += a.minutes;
-      } else if (
-        pkg.includes('youtube') ||
-        pkg.includes('netflix') ||
-        pkg.includes('spotify') ||
-        pkg.includes('tiktok') ||
-        pkg.includes('instagram')
-      ) {
-        totals['Media & Entertainment'] += a.minutes;
-      } else if (pkg.includes('duolingo') || pkg.includes('wikipedia') || pkg.includes('anki')) {
-        totals['Learning'] += a.minutes;
-      } else if (
-        pkg.includes('whatsapp') ||
-        pkg.includes('telegram') ||
-        pkg.includes('discord') ||
-        pkg.includes('signal')
-      ) {
-        totals['Communication'] += a.minutes;
-      } else {
-        totals['Utilities & Other'] += a.minutes;
-      }
+      const display = categoryDisplayName(a.category);
+      totals[display] = (totals[display] || 0) + a.minutes;
     }
 
-    return Object.entries(totals).map(([name, mins]) => ({
-      name,
-      minutes: mins,
-      percent: grandTotal > 0 ? Math.round((mins / grandTotal) * 100) : 0,
-    }));
+    return Object.entries(totals)
+      .map(([name, mins]) => ({
+        name,
+        minutes: mins,
+        percent: grandTotal > 0 ? Math.round((mins / grandTotal) * 100) : 0,
+      }))
+      .sort((a, b) => b.minutes - a.minutes);
   };
 
   const handleRename = async (pkg: string, currentName: string) => {
@@ -423,7 +447,7 @@ export function ScreenTimeReport() {
           </div>
 
           <div class="pt-3 mt-3 border-t border-border-default text-xs text-text-dim text-center">
-            Derived from package identifier patterns
+            Based on Play Store categories
           </div>
         </div>
 
