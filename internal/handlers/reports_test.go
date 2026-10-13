@@ -15,6 +15,7 @@ import (
 	"github.com/owen282000/life-dashboard-hub/internal/database"
 	"github.com/owen282000/life-dashboard-hub/internal/middleware"
 	"github.com/owen282000/life-dashboard-hub/internal/models"
+	"github.com/owen282000/life-dashboard-hub/internal/resolver"
 )
 
 func setupReportsTestApp(t *testing.T) (*fiber.App, *database.DB, *models.User, *models.Device, *models.Device, string) {
@@ -276,5 +277,93 @@ func TestHealthReportsAndExport(t *testing.T) {
 		if r.Day != nil && *r.Day == "2026-10-10" {
 			t.Errorf("record for 2026-10-10 was not deleted")
 		}
+	}
+}
+func TestScreenTimeAppsCategories(t *testing.T) {
+	app, db, _, d1, _, sessionCookie := setupReportsTestApp(t)
+
+	// Setup resolver with DB
+	res := resolver.NewPackageResolver(db)
+
+	// Insert app metadata directly into DB
+	meta1 := models.AppMetadata{
+		PackageName: "com.spotify.music",
+		AppName:     "Spotify",
+		Category:    "MUSIC_AND_AUDIO",
+		Source:      "builtin",
+		ResolvedAt:  time.Now().UTC(),
+	}
+	_ = db.Save(&meta1)
+
+	// Seed screen time record for d1
+	curDate := "2026-10-12"
+	dData, _ := json.Marshal(map[string]interface{}{
+		"total_screen_time_minutes": 120,
+		"apps": []map[string]interface{}{
+			{"package_name": "com.spotify.music", "app_name": "Spotify", "minutes": 70},
+			{"package_name": "com.unknown.app", "app_name": "", "minutes": 50},
+		},
+	})
+	rec := models.Record{
+		DeviceID:    d1.ID,
+		Type:        "screen_time",
+		UUID:        fmt.Sprintf("screen_time:%d:%s", d1.ID, curDate),
+		Day:         &curDate,
+		Data:        string(dData),
+		DeviceModel: d1.DeviceModel,
+	}
+	_ = db.Create(&rec)
+
+	// Also attach resolver to handler
+	reportsHandler := NewReportsHandler(db, res)
+	app.Get("/api/v1/reports/screen-time/apps-with-resolver", reportsHandler.GetScreenTimeApps)
+
+	req := httptest.NewRequest("GET", "/api/v1/reports/screen-time/apps-with-resolver?from=2026-10-01&to=2026-10-13", nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: sessionCookie})
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	var apps []AppUsageSummary
+	if err := json.NewDecoder(resp.Body).Decode(&apps); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(apps) != 2 {
+		t.Fatalf("expected 2 apps, got %d", len(apps))
+	}
+
+	// Find spotify and unknown
+	var spotify, unknown *AppUsageSummary
+	for i := range apps {
+		if apps[i].PackageName == "com.spotify.music" {
+			spotify = &apps[i]
+		} else if apps[i].PackageName == "com.unknown.app" {
+			unknown = &apps[i]
+		}
+	}
+
+	if spotify == nil {
+		t.Fatal("com.spotify.music not found in response")
+	}
+	if spotify.Category != "MUSIC_AND_AUDIO" {
+		t.Errorf("expected category 'MUSIC_AND_AUDIO', got '%s'", spotify.Category)
+	}
+	if spotify.AppName != "Spotify" {
+		t.Errorf("expected app_name 'Spotify', got '%s'", spotify.AppName)
+	}
+
+	if unknown == nil {
+		t.Fatal("com.unknown.app not found in response")
+	}
+	if unknown.Category != "" {
+		t.Errorf("expected empty category for unresolved app, got '%s'", unknown.Category)
+	}
+	if unknown.AppName != "App" {
+		t.Errorf("expected fallback app_name 'App', got '%s'", unknown.AppName)
 	}
 }

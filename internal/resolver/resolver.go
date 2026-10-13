@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html"
 	"io"
@@ -17,30 +18,35 @@ import (
 	"gorm.io/gorm"
 )
 
+type playStoreResult struct {
+	Name     string
+	Category string
+}
+
+var ldJSONRegex = regexp.MustCompile(`<script type="application/ld\+json"[^>]*>(.*?)</script>`)
 var nameRegex = regexp.MustCompile(`itemprop="name"[^>]*>([^<]+)<`)
 var fallbackNameRegex = regexp.MustCompile(`<h1[^>]*>.*?<span[^>]*>([^<]+)</span>.*?</h1>`)
-
 // Known common system packages fallback
-var commonPackages = map[string]string{
-	"com.android.chrome":                "Google Chrome",
-	"com.google.android.youtube":        "YouTube",
-	"com.google.android.apps.maps":      "Google Maps",
-	"com.google.android.apps.photos":    "Google Photos",
-	"com.google.android.gm":             "Gmail",
-	"com.google.android.apps.messaging": "Messages",
-	"com.google.android.dialer":         "Phone",
-	"com.whatsapp":                      "WhatsApp",
-	"com.instagram.android":             "Instagram",
-	"com.spotify.music":                 "Spotify",
-	"org.mozilla.fenix":                 "Firefox",
-	"org.mozilla.firefox":               "Firefox",
-	"com.twitter.android":               "X (Twitter)",
-	"com.zhiliaoapp.musically":          "TikTok",
-	"org.telegram.messenger":            "Telegram",
-	"com.discord":                       "Discord",
-	"com.reddit.frontpage":              "Reddit",
-	"com.netflix.mediaclient":           "Netflix",
-	"com.amazon.mShop.android.shopping": "Amazon",
+var commonPackages = map[string]playStoreResult{
+	"com.android.chrome":                {Name: "Google Chrome", Category: "COMMUNICATION"},
+	"com.google.android.youtube":        {Name: "YouTube", Category: "VIDEO_PLAYERS"},
+	"com.google.android.apps.maps":      {Name: "Google Maps", Category: "TRAVEL_AND_LOCAL"},
+	"com.google.android.apps.photos":    {Name: "Google Photos", Category: "PHOTOGRAPHY"},
+	"com.google.android.gm":             {Name: "Gmail", Category: "COMMUNICATION"},
+	"com.google.android.apps.messaging": {Name: "Messages", Category: "COMMUNICATION"},
+	"com.google.android.dialer":         {Name: "Phone", Category: "COMMUNICATION"},
+	"com.whatsapp":                      {Name: "WhatsApp", Category: "COMMUNICATION"},
+	"com.instagram.android":             {Name: "Instagram", Category: "SOCIAL"},
+	"com.spotify.music":                 {Name: "Spotify", Category: "MUSIC_AND_AUDIO"},
+	"org.mozilla.fenix":                 {Name: "Firefox", Category: "PRODUCTIVITY"},
+	"org.mozilla.firefox":               {Name: "Firefox", Category: "PRODUCTIVITY"},
+	"com.twitter.android":               {Name: "X (Twitter)", Category: "SOCIAL"},
+	"com.zhiliaoapp.musically":          {Name: "TikTok", Category: "VIDEO_PLAYERS"},
+	"org.telegram.messenger":            {Name: "Telegram", Category: "COMMUNICATION"},
+	"com.discord":                       {Name: "Discord", Category: "COMMUNICATION"},
+	"com.reddit.frontpage":              {Name: "Reddit", Category: "SOCIAL"},
+	"com.netflix.mediaclient":           {Name: "Netflix", Category: "ENTERTAINMENT"},
+	"com.amazon.mShop.android.shopping": {Name: "Amazon", Category: "SHOPPING"},
 }
 
 type PackageResolver struct {
@@ -106,10 +112,11 @@ func (pr *PackageResolver) worker(ctx context.Context) {
 
 func (pr *PackageResolver) resolvePackage(pkg string) {
 	// 1. Check known built-in dictionary
-	if name, ok := commonPackages[pkg]; ok {
+	if entry, ok := commonPackages[pkg]; ok {
 		meta := models.AppMetadata{
 			PackageName: pkg,
-			AppName:     name,
+			AppName:     entry.Name,
+			Category:    entry.Category,
 			Source:      "builtin",
 			ResolvedAt:  time.Now().UTC(),
 		}
@@ -118,16 +125,17 @@ func (pr *PackageResolver) resolvePackage(pkg string) {
 	}
 
 	// 2. Fetch from Google Play Store
-	appName, err := pr.fetchPlayStoreName(pkg)
-	if err == nil && appName != "" {
+	result, err := pr.fetchPlayStoreName(pkg)
+	if err == nil && result.Name != "" {
 		meta := models.AppMetadata{
 			PackageName: pkg,
-			AppName:     appName,
+			AppName:     result.Name,
+			Category:    result.Category,
 			Source:      "play_store",
 			ResolvedAt:  time.Now().UTC(),
 		}
 		_ = pr.db.Save(&meta).Error
-		slog.Info("Resolved package name from Play Store", "package", pkg, "name", appName)
+		slog.Info("Resolved package name from Play Store", "package", pkg, "name", result.Name, "category", result.Category)
 		return
 	}
 	// 3. Fallback: Pretty-print last package segment
@@ -141,11 +149,11 @@ func (pr *PackageResolver) resolvePackage(pkg string) {
 	_ = pr.db.Save(&meta).Error
 }
 
-func (pr *PackageResolver) fetchPlayStoreName(pkg string) (string, error) {
+func (pr *PackageResolver) fetchPlayStoreName(pkg string) (playStoreResult, error) {
 	url := fmt.Sprintf("https://play.google.com/store/apps/details?id=%s&hl=en", pkg)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", err
+		return playStoreResult{}, err
 	}
 
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
@@ -153,31 +161,45 @@ func (pr *PackageResolver) fetchPlayStoreName(pkg string) (string, error) {
 
 	resp, err := pr.httpClient.Do(req)
 	if err != nil {
-		return "", err
+		return playStoreResult{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("http status %d", resp.StatusCode)
+		return playStoreResult{}, fmt.Errorf("http status %d", resp.StatusCode)
 	}
 
 	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 4*1024*1024))
 	if err != nil {
-		return "", err
+		return playStoreResult{}, err
 	}
 	bodyStr := string(bodyBytes)
 
+	var category string
+	if ldMatch := ldJSONRegex.FindStringSubmatch(bodyStr); len(ldMatch) > 1 {
+		var ld struct {
+			Name                string `json:"name"`
+			ApplicationCategory string `json:"applicationCategory"`
+		}
+		if json.Unmarshal([]byte(ldMatch[1]), &ld) == nil {
+			category = ld.ApplicationCategory
+			if ld.Name != "" {
+				return playStoreResult{Name: ld.Name, Category: category}, nil
+			}
+		}
+	}
+
 	m := nameRegex.FindStringSubmatch(bodyStr)
 	if len(m) > 1 {
-		return strings.TrimSpace(html.UnescapeString(m[1])), nil
+		return playStoreResult{Name: strings.TrimSpace(html.UnescapeString(m[1])), Category: category}, nil
 	}
 
 	m2 := fallbackNameRegex.FindStringSubmatch(bodyStr)
 	if len(m2) > 1 {
-		return strings.TrimSpace(html.UnescapeString(m2[1])), nil
+		return playStoreResult{Name: strings.TrimSpace(html.UnescapeString(m2[1])), Category: category}, nil
 	}
 
-	return "", fmt.Errorf("name element not found in HTML")
+	return playStoreResult{}, fmt.Errorf("name element not found in HTML")
 }
 
 // GetResolvedNames returns a map of package_name -> app_name for requested packages
@@ -204,9 +226,17 @@ func (pr *PackageResolver) SetCustomOverride(pkg, customName string) error {
 		return fmt.Errorf("package_name and app_name are required")
 	}
 
+	// Preserve existing category if present
+	var existing models.AppMetadata
+	var category string
+	if err := pr.db.Where("package_name = ?", pkg).First(&existing).Error; err == nil {
+		category = existing.Category
+	}
+
 	meta := models.AppMetadata{
 		PackageName: pkg,
 		AppName:     customName,
+		Category:    category,
 		Source:      "custom",
 		ResolvedAt:  time.Now().UTC(),
 	}

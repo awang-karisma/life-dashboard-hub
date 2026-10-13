@@ -1482,6 +1482,9 @@ const docTemplate = `{
                 "app_name": {
                     "type": "string"
                 },
+                "category": {
+                    "type": "string"
+                },
                 "minutes": {
                     "type": "integer"
                 },

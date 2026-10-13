@@ -75,6 +75,7 @@ type DeviceDaySummary struct {
 type AppUsageSummary struct {
 	PackageName string `json:"package_name"`
 	AppName     string `json:"app_name"`
+	Category    string `json:"category"`
 	Minutes     int64  `json:"minutes"`
 }
 
@@ -343,6 +344,7 @@ func (h *ReportsHandler) GetScreenTimeApps(c fiber.Ctx) error {
 	for pkg, summary := range appTotals {
 		if meta, found := resolved[pkg]; found && meta.AppName != "" {
 			summary.AppName = meta.AppName
+			summary.Category = meta.Category
 		} else {
 			// Not yet resolved locally: use humanized fallback immediately
 			if summary.AppName == "" || summary.AppName == pkg {
