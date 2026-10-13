@@ -20,9 +20,10 @@ type WebhookHandler struct {
 	DB           *database.DB
 	MaxBodyBytes int64
 	ServerTZ     *time.Location
+	Bus          *IngestionBus
 }
 
-func NewWebhookHandler(db *database.DB, maxBodyBytes int64, tz string) *WebhookHandler {
+func NewWebhookHandler(db *database.DB, maxBodyBytes int64, tz string, bus *IngestionBus) *WebhookHandler {
 	loc, err := time.LoadLocation(tz)
 	if err != nil {
 		loc = time.UTC
@@ -31,6 +32,7 @@ func NewWebhookHandler(db *database.DB, maxBodyBytes int64, tz string) *WebhookH
 		DB:           db,
 		MaxBodyBytes: maxBodyBytes,
 		ServerTZ:     loc,
+		Bus:          bus,
 	}
 }
 
@@ -50,6 +52,7 @@ func NewWebhookHandler(db *database.DB, maxBodyBytes int64, tz string) *WebhookH
 // @Failure      413 {object} ErrorResponse "Payload too large"
 // @Router       /webhooks/v1/devices/{deviceToken} [post]
 func (h *WebhookHandler) HandleWebhook(c fiber.Ctx) error {
+	startTime := time.Now()
 	deviceToken := c.Params("deviceToken")
 	if deviceToken == "" {
 		return c.Status(fiber.StatusNotFound).JSON(ErrorResponse{Error: "device token required"})
@@ -117,6 +120,23 @@ func (h *WebhookHandler) HandleWebhook(c fiber.Ctx) error {
 			device.LastSyncSource = parsed.Source
 		}
 		_ = h.DB.Save(&device).Error
+		if h.Bus != nil {
+			dName := device.DisplayName
+			if dName == "" {
+				dName = device.Label
+			}
+			h.Bus.Publish(IngestionEvent{
+				Timestamp:  now,
+				DeviceID:   device.ID,
+				DeviceName: dName,
+				Source:     parsed.Source,
+				SHA256:     "ping",
+				Records:    0,
+				Tombstones: 0,
+				LatencyMs:  time.Since(startTime).Milliseconds(),
+				Status:     "PING_OK",
+			})
+		}
 		return c.JSON(fiber.Map{
 			"stored": 0,
 			"ping":   true,
@@ -207,12 +227,28 @@ func (h *WebhookHandler) HandleWebhook(c fiber.Ctx) error {
 		}
 		return tx.Save(&device).Error
 	})
-
 	if err != nil {
 		slog.Error("Failed to store webhook payload in transaction", "error", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: "failed to process payload"})
 	}
 
+	if h.Bus != nil {
+		dName := device.DisplayName
+		if dName == "" {
+			dName = device.Label
+		}
+		h.Bus.Publish(IngestionEvent{
+			Timestamp:  now,
+			DeviceID:   device.ID,
+			DeviceName: dName,
+			Source:     parsed.Source,
+			SHA256:     bodySHA256,
+			Records:    storedCount,
+			Tombstones: int64(len(parsed.DeletedRecords)),
+			LatencyMs:  time.Since(startTime).Milliseconds(),
+			Status:     "PAYLOAD_OK",
+		})
+	}
 	return c.JSON(fiber.Map{
 		"stored":  storedCount,
 		"buckets": len(parsed.Buckets),

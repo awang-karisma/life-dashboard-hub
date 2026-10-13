@@ -47,7 +47,7 @@ func setupTestApp(t *testing.T) (*fiber.App, *database.DB, *models.Device, strin
 	}
 
 	app := fiber.New()
-	wh := NewWebhookHandler(db, 32*1024*1024, "UTC")
+	wh := NewWebhookHandler(db, 32*1024*1024, "UTC", NewIngestionBus())
 	app.Post("/webhooks/v1/devices/:deviceToken", wh.HandleWebhook)
 
 	return app, db, &device, rawToken, secret
@@ -289,5 +289,68 @@ func TestWebhookHealthConnectIngestion(t *testing.T) {
 	var tomb models.Tombstone
 	if err := db.Where("device_id = ? AND uuid = 'old-step-record-999'", device.ID).First(&tomb).Error; err != nil {
 		t.Errorf("expected tombstone in db: %v", err)
+	}
+}
+
+func TestWebhookPublishesToIngestionBus(t *testing.T) {
+	db, err := database.OpenTestDB("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rawToken := "bus-test-token-12345"
+	tokenHash := HashToken(rawToken)
+	secret := "bus-secret-67890"
+
+	user := models.User{Email: "bustest@example.com"}
+	_ = db.Create(&user)
+
+	device := models.Device{
+		UserID:        user.ID,
+		Label:         "bus-phone",
+		DisplayName:   "Bus Test Phone",
+		TokenHash:     tokenHash,
+		WebhookSecret: secret,
+		Status:        "active",
+	}
+	_ = db.Create(&device)
+
+	bus := NewIngestionBus()
+	subID, ch := bus.Subscribe()
+	defer bus.Unsubscribe(subID)
+
+	app := fiber.New()
+	wh := NewWebhookHandler(db, 32*1024*1024, "UTC", bus)
+	app.Post("/webhooks/v1/devices/:deviceToken", wh.HandleWebhook)
+
+	payload := map[string]interface{}{
+		"type": "ping",
+	}
+	bodyBytes, _ := json.Marshal(payload)
+
+	req := httptest.NewRequest("POST", "/webhooks/v1/devices/"+rawToken, bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Length", strconv.Itoa(len(bodyBytes)))
+	req.ContentLength = int64(len(bodyBytes))
+	req.Header.Set("X-Signature", signBody(bodyBytes, secret))
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	select {
+	case ev := <-ch:
+		if ev.Status != "PING_OK" {
+			t.Errorf("expected Status PING_OK, got %s", ev.Status)
+		}
+		if ev.DeviceName != "Bus Test Phone" {
+			t.Errorf("expected DeviceName Bus Test Phone, got %s", ev.DeviceName)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("timed out waiting for event on bus")
 	}
 }

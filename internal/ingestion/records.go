@@ -65,6 +65,9 @@ func ParsePayload(deviceID uint, bodyBytes []byte, serverTZ *time.Location) (*Pa
 	if pingVal, ok := raw["ping"].(bool); ok && pingVal {
 		result.IsPing = true
 		result.Kind = "ping"
+	} else if typeVal, ok := raw["type"].(string); ok && typeVal == "ping" {
+		result.IsPing = true
+		result.Kind = "ping"
 	}
 
 	if src, ok := raw["source"].(string); ok {

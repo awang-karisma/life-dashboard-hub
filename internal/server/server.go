@@ -29,6 +29,7 @@ type Server struct {
 	SessionService *auth.SessionService
 	OIDCClient     *auth.OIDCClient
 	Resolver       *resolver.PackageResolver
+	Bus            *handlers.IngestionBus
 }
 
 func New(cfg *config.Config, db *database.DB) *Server {
@@ -51,6 +52,7 @@ func New(cfg *config.Config, db *database.DB) *Server {
 	sessionService := auth.NewSessionService(db)
 	oidcClient := auth.NewOIDCClient(context.Background(), cfg)
 
+	bus := handlers.NewIngestionBus()
 	s := &Server{
 		App:            app,
 		Cfg:            cfg,
@@ -58,6 +60,7 @@ func New(cfg *config.Config, db *database.DB) *Server {
 		SessionService: sessionService,
 		OIDCClient:     oidcClient,
 		Resolver:       resolver.NewPackageResolver(db),
+		Bus:            bus,
 	}
 
 	s.setupRoutes()
@@ -83,7 +86,7 @@ func (s *Server) setupRoutes() {
 	webhooks := s.App.Group("/webhooks/v1", webhookLimiter.Handler())
 
 	// Webhook handler
-	webhookHandler := handlers.NewWebhookHandler(s.DB, s.Cfg.MaxBodyBytes, s.Cfg.TZ)
+	webhookHandler := handlers.NewWebhookHandler(s.DB, s.Cfg.MaxBodyBytes, s.Cfg.TZ, s.Bus)
 	webhooks.Post("/devices/:deviceToken", webhookHandler.HandleWebhook)
 
 	// Auth handlers
@@ -146,6 +149,9 @@ func (s *Server) setupRoutes() {
 	protected.Get("/users/me", usersHandler.GetCurrentUser)
 	protected.Patch("/users/me", usersHandler.UpdateCurrentUser)
 
+	// Events handler (SSE)
+	eventsHandler := handlers.NewEventsHandler(s.Bus)
+	protected.Get("/events/ingestion", eventsHandler.StreamIngestion)
 	// Mount frontend if embedded (registered last so API routes take precedence)
 	MountFrontend(s.App)
 }

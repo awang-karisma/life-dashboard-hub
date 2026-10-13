@@ -1,3 +1,4 @@
+import { IconEdit } from '@tabler/icons-solidjs';
 import { formatMinutes } from '../lib/format';
 
 interface AppUsageBarProps {
@@ -15,32 +16,28 @@ export function AppUsageBar(props: AppUsageBarProps) {
   };
 
   return (
-    <div style={{ 'margin-bottom': '0.75rem' }}>
-      <div style={{ display: 'flex', 'justify-content': 'space-between', 'align-items': 'center', 'font-size': '0.875rem', 'margin-bottom': '0.25rem' }}>
-        <div style={{ display: 'flex', 'align-items': 'center', gap: '0.5rem' }}>
-          <span style={{ 'font-weight': 600 }}>{props.appName}</span>
-          <span style={{ 'font-size': '0.75rem', color: 'var(--text-muted)' }}>({props.packageName})</span>
+    <div class="mb-3">
+      <div class="flex justify-between items-center text-sm mb-1">
+        <div class="flex items-center gap-2">
+          <span class="font-semibold text-text-primary">{props.appName}</span>
+          <span class="text-xs text-text-muted font-mono">({props.packageName})</span>
           {props.onRename && (
             <button
+              type="button"
               onClick={() => props.onRename?.(props.packageName, props.appName)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', 'font-size': '0.75rem', color: 'var(--primary)', padding: 0 }}
+              class="text-primary hover:text-primary-light transition-colors cursor-pointer p-0.5"
               title="Rename app"
             >
-              ✏️
+              <IconEdit size={14} />
             </button>
           )}
         </div>
-        <span style={{ color: 'var(--text-muted)' }}>{formatMinutes(props.minutes)}</span>
+        <span class="text-text-muted text-xs font-medium">{formatMinutes(props.minutes)}</span>
       </div>
-      <div style={{ background: '#e2e8f0', 'border-radius': '9999px', height: '8px', overflow: 'hidden' }}>
+      <div class="bg-primary/15 rounded-full h-2 overflow-hidden">
         <div
-          style={{
-            background: 'var(--primary)',
-            height: '100%',
-            width: `${percent()}%`,
-            'border-radius': '9999px',
-            transition: 'width 0.3s ease',
-          }}
+          class="bg-primary h-full rounded-full transition-all duration-300"
+          style={{ width: `${percent()}%` }}
         />
       </div>
     </div>
