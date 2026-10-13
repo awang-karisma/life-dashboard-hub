@@ -1,7 +1,15 @@
 import { createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { A, useLocation } from '@solidjs/router';
+import {
+  IconArrowLeft,
+  IconQrcode,
+  IconCopy,
+  IconCheck,
+} from '@tabler/icons-solidjs';
 import { ApiClient } from '../api/client';
 import { QRCode } from '../components/QRCode';
+import { PulseDot } from '../components/PulseDot';
+import { showToast } from '../components/Toast';
 
 interface DeviceCredentials {
   id: number;
@@ -19,8 +27,8 @@ export function DeviceSetup() {
   const [credentials, setCredentials] = createSignal<DeviceCredentials | null>(null);
   const [isSynced, setIsSynced] = createSignal(false);
   const [loading, setLoading] = createSignal(false);
-  const [error, setError] = createSignal('');
   let pollInterval: number | undefined;
+
   onMount(() => {
     const state = location.state;
     if (state && typeof state === 'object' && 'credentials' in state) {
@@ -44,6 +52,7 @@ export function DeviceSetup() {
         const d = await ApiClient.get<{ last_sync_at?: string }>(`/api/v1/devices/${deviceId}`);
         if (d && d.last_sync_at) {
           setIsSynced(true);
+          showToast('Companion app connected successfully!', 'success');
           clearInterval(pollInterval);
         }
       } catch {
@@ -54,7 +63,6 @@ export function DeviceSetup() {
 
   const handleCreate = async (e: Event) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
 
     try {
@@ -63,13 +71,10 @@ export function DeviceSetup() {
         display_name: displayName(),
       });
       setCredentials(resp);
+      showToast('Enrollment credentials generated', 'success');
       startPolling(resp.id);
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Failed to create device');
-      }
+      showToast(err instanceof Error ? err.message : 'Failed to create device', 'error');
     } finally {
       setLoading(false);
     }
@@ -77,121 +82,174 @@ export function DeviceSetup() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert('Copied to clipboard!');
+    showToast('Copied to clipboard', 'success');
   };
 
   return (
-    <div style={{ 'max-width': '720px', margin: '0 auto' }}>
-      <div style={{ 'margin-bottom': '1.5rem' }}>
-        <A href="/devices" style={{ 'font-size': '0.875rem' }}>← Back to Devices</A>
-        <h1 style={{ 'font-size': '1.75rem', 'font-weight': 700, 'margin-top': '0.5rem' }}>Pair New Device</h1>
-        <p style={{ color: 'var(--text-muted)', 'font-size': '0.875rem' }}>
+    <div class="max-w-[720px] mx-auto flex flex-col gap-5">
+      <div>
+        <A
+          href="/devices"
+          class="text-xs text-text-muted hover:text-text-primary flex items-center gap-1.5 no-underline transition-colors mb-2"
+        >
+          <IconArrowLeft size={16} />
+          <span>Back to Devices</span>
+        </A>
+        <h1 class="text-2xl font-extrabold text-text-primary tracking-tight">Pair New Device</h1>
+        <p class="text-xs text-text-muted mt-1">
           Connect Life Dashboard Companion on your Android phone or tablet
         </p>
       </div>
 
-      <Show when={error()}>
-        <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '0.75rem', 'border-radius': '0.5rem', 'margin-bottom': '1rem' }}>
-          {error()}
-        </div>
-      </Show>
-
       <Show
         when={credentials()}
         fallback={
-          <div class="card">
-            <h2 style={{ 'font-size': '1.125rem', 'font-weight': 600, 'margin-bottom': '1rem' }}>Device Details</h2>
-            <form onSubmit={handleCreate} style={{ display: 'flex', 'flex-direction': 'column', gap: '1rem' }}>
+          <div class="bento-card">
+            <h2 class="text-base font-bold text-text-primary mb-4">Device Details</h2>
+            <form onSubmit={handleCreate} class="flex flex-col gap-4">
               <div>
-                <label style={{ display: 'block', 'font-size': '0.875rem', 'font-weight': 500, 'margin-bottom': '0.35rem' }}>
+                <label class="block text-xs font-semibold text-text-muted mb-1">
                   Device Name
                 </label>
                 <input
                   type="text"
                   required
-                  class="input"
                   placeholder="e.g. My Pixel 8"
                   value={displayName()}
                   onInput={(e) => {
                     setDisplayName(e.currentTarget.value);
                     if (!label()) {
-                      setLabel(e.currentTarget.value.toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 32));
+                      setLabel(
+                        e.currentTarget.value
+                          .toLowerCase()
+                          .replace(/[^a-z0-9_-]/g, '-')
+                          .slice(0, 32)
+                      );
                     }
                   }}
+                  class="w-full bg-bg-card border border-border-default rounded-sm px-3 py-2 text-sm text-text-primary focus:border-border-focus focus:outline-none"
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', 'font-size': '0.875rem', 'font-weight': 500, 'margin-bottom': '0.35rem' }}>
+                <label class="block text-xs font-semibold text-text-muted mb-1">
                   Label (unique URL identifier)
                 </label>
                 <input
                   type="text"
                   required
-                  class="input"
                   placeholder="e.g. pixel-8"
                   value={label()}
-                  onInput={(e) => setLabel(e.currentTarget.value.toLowerCase().replace(/[^a-z0-9_-]/g, '-'))}
+                  onInput={(e) =>
+                    setLabel(e.currentTarget.value.toLowerCase().replace(/[^a-z0-9_-]/g, '-'))
+                  }
+                  class="w-full bg-bg-card border border-border-default rounded-sm px-3 py-2 text-sm text-text-primary focus:border-border-focus focus:outline-none font-mono"
                 />
-                <span style={{ 'font-size': '0.75rem', color: 'var(--text-muted)' }}>
+                <span class="text-[0.7rem] text-text-dim mt-1 block">
                   Only lowercase letters, numbers, hyphens, and underscores (max 32 chars).
                 </span>
               </div>
 
-              <button type="submit" disabled={loading()} class="btn btn-primary" style={{ 'margin-top': '0.5rem' }}>
-                {loading() ? 'Generating credentials...' : 'Generate Pairing QR Code'}
+              <button
+                type="submit"
+                disabled={loading()}
+                class="bg-primary hover:bg-primary-hover text-white py-2.5 rounded-sm font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm mt-2 disabled:opacity-50"
+              >
+                <IconQrcode size={16} />
+                <span>{loading() ? 'Generating credentials...' : 'Generate Pairing QR Code'}</span>
               </button>
             </form>
           </div>
         }
       >
-        <div class="card" style={{ 'text-align': 'center' }}>
+        <div class="bento-card text-center flex flex-col items-center">
           <Show when={isSynced()}>
-            <div style={{ background: '#dcfce7', color: '#15803d', padding: '1rem', 'border-radius': '0.5rem', 'margin-bottom': '1.5rem', 'font-weight': 600 }}>
-              🎉 Connection verified! Companion app sent initial payload successfully.
+            <div class="w-full bg-success-bg border border-success/30 text-success p-3 rounded-md mb-5 font-semibold text-xs flex items-center justify-center gap-2">
+              <IconCheck size={18} />
+              <span>Connection verified! Companion app sent initial payload successfully.</span>
             </div>
           </Show>
 
-          <h2 style={{ 'font-size': '1.25rem', 'font-weight': 600 }}>Scan QR Code with Companion App</h2>
-          <p style={{ color: 'var(--text-muted)', 'font-size': '0.875rem', 'margin': '0.5rem 0 1.5rem 0' }}>
-            Open <strong>Life Dashboard Companion</strong> on Android → go to <strong>Settings</strong> → tap <strong>Scan QR Code</strong>
+          <h2 class="text-lg font-bold text-text-primary mb-1">
+            Scan QR Code with Companion App
+          </h2>
+          <p class="text-xs text-text-muted max-w-md mx-auto mb-5">
+            Open <strong>Life Dashboard Companion</strong> on Android &rarr; go to{' '}
+            <strong>Settings</strong> &rarr; tap <strong>Scan QR Code</strong>
           </p>
 
-          <div style={{ 'margin-bottom': '1.5rem' }}>
-            <QRCode text={credentials()!.pairing_qr} size={260} />
+          <div class="p-4 bg-white rounded-lg shadow-inner mb-5 inline-block">
+            <QRCode text={credentials()!.pairing_qr} size={240} />
           </div>
 
-          <div style={{ 'margin-bottom': '1.5rem', display: 'flex', 'align-items': 'center', 'justify-content': 'center', gap: '0.5rem' }}>
-            <span class={`badge ${isSynced() ? 'badge-green' : 'badge-yellow'}`}>
-              {isSynced() ? 'Connected' : 'Waiting for initial sync...'}
+          <div class="flex items-center justify-center gap-3 mb-6">
+            <span
+              class={`rounded-full px-3 py-1 text-xs font-semibold inline-flex items-center gap-1.5 ${
+                isSynced()
+                  ? 'bg-success-bg text-success'
+                  : 'bg-warning-bg text-warning'
+              }`}
+            >
+              <PulseDot color={isSynced() ? 'var(--color-success)' : 'var(--color-warning)'} />
+              <span>{isSynced() ? 'Connected' : 'Waiting for initial sync...'}</span>
             </span>
-            <button onClick={() => copyToClipboard(credentials()!.pairing_qr)} class="btn btn-secondary" style={{ 'font-size': '0.75rem', padding: '0.25rem 0.5rem' }}>
-              📋 Copy Pairing URI
+
+            <button
+              type="button"
+              onClick={() => copyToClipboard(credentials()!.pairing_qr)}
+              class="px-3 py-1 rounded-sm bg-white/5 hover:bg-white/10 text-text-primary text-xs font-semibold border border-border-default transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <IconCopy size={14} />
+              <span>Copy Pairing URI</span>
             </button>
           </div>
 
-          <div style={{ 'text-align': 'left', background: '#f8fafc', padding: '1rem', 'border-radius': '0.5rem', 'border': '1px solid var(--border)' }}>
-            <div style={{ 'font-weight': 600, 'font-size': '0.875rem', 'margin-bottom': '0.5rem' }}>
+          <div class="w-full text-left bg-black/25 p-4 rounded-md border border-border-default text-xs space-y-3">
+            <div class="font-bold text-text-primary">
               Manual Configuration (if QR scanner is unavailable):
             </div>
-            <div style={{ 'margin-bottom': '0.5rem' }}>
-              <div style={{ 'font-size': '0.75rem', color: 'var(--text-muted)' }}>Webhook URL:</div>
-              <div style={{ display: 'flex', gap: '0.5rem', 'margin-top': '0.25rem' }}>
-                <input readonly class="input" style={{ 'font-family': 'monospace', 'font-size': '0.8rem' }} value={credentials()!.webhook_url} />
-                <button onClick={() => copyToClipboard(credentials()!.webhook_url)} class="btn btn-secondary" style={{ 'font-size': '0.75rem' }}>Copy</button>
+            <div>
+              <div class="text-[0.7rem] text-text-dim mb-1">Webhook URL:</div>
+              <div class="flex gap-2">
+                <input
+                  readonly
+                  class="w-full bg-bg-card border border-border-default rounded-sm px-2.5 py-1 font-mono text-[0.75rem] text-text-primary"
+                  value={credentials()!.webhook_url}
+                />
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(credentials()!.webhook_url)}
+                  class="px-2.5 py-1 bg-white/10 hover:bg-white/15 text-text-primary rounded-sm shrink-0 cursor-pointer text-xs"
+                >
+                  Copy
+                </button>
               </div>
             </div>
+
             <div>
-              <div style={{ 'font-size': '0.75rem', color: 'var(--text-muted)' }}>HMAC Secret:</div>
-              <div style={{ display: 'flex', gap: '0.5rem', 'margin-top': '0.25rem' }}>
-                <input readonly class="input" style={{ 'font-family': 'monospace', 'font-size': '0.8rem' }} value={credentials()!.webhook_secret} />
-                <button onClick={() => copyToClipboard(credentials()!.webhook_secret)} class="btn btn-secondary" style={{ 'font-size': '0.75rem' }}>Copy</button>
+              <div class="text-[0.7rem] text-text-dim mb-1">HMAC Secret:</div>
+              <div class="flex gap-2">
+                <input
+                  readonly
+                  class="w-full bg-bg-card border border-border-default rounded-sm px-2.5 py-1 font-mono text-[0.75rem] text-text-primary"
+                  value={credentials()!.webhook_secret}
+                />
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(credentials()!.webhook_secret)}
+                  class="px-2.5 py-1 bg-white/10 hover:bg-white/15 text-text-primary rounded-sm shrink-0 cursor-pointer text-xs"
+                >
+                  Copy
+                </button>
               </div>
             </div>
           </div>
 
-          <div style={{ 'margin-top': '1.5rem' }}>
-            <A href="/devices" class="btn btn-primary">
+          <div class="mt-6 w-full">
+            <A
+              href="/devices"
+              class="block w-full bg-primary hover:bg-primary-hover text-white py-2.5 rounded-sm font-semibold text-xs text-center no-underline shadow-sm transition-all"
+            >
               Done & Return to Devices
             </A>
           </div>

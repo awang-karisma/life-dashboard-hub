@@ -23,7 +23,6 @@ export function Chart(props: ChartProps) {
   onMount(init);
 
   createEffect(() => {
-    // When config changes, re-create chart
     if (props.config) {
       init();
     }
@@ -36,7 +35,10 @@ export function Chart(props: ChartProps) {
   });
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: props.height ? `${props.height}px` : '320px' }}>
+    <div
+      class="relative w-full"
+      style={{ height: props.height ? `${props.height}px` : '320px' }}
+    >
       <canvas ref={canvasRef} />
     </div>
   );

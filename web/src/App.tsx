@@ -2,6 +2,8 @@ import { createSignal, onMount, Show, JSX } from 'solid-js';
 import { Router, Route } from '@solidjs/router';
 import { ApiClient } from './api/client';
 import { Nav } from './components/Nav';
+import { ToastContainer } from './components/Toast';
+import { Footer } from './components/Footer';
 import { Login } from './routes/Login';
 import { Register } from './routes/Register';
 import { Dashboard } from './routes/Dashboard';
@@ -34,13 +36,23 @@ function MainLayout(props: { children?: JSX.Element }) {
   });
 
   return (
-    <div style={{ 'min-height': '100vh', display: 'flex', 'flex-direction': 'column' }}>
+    <div class="min-h-screen flex flex-col">
       <Nav user={user() || undefined} />
-      <main class="container" style={{ flex: 1, padding: '1.5rem 1rem' }}>
-        <Show when={!loading()} fallback={<div style={{ padding: '3rem', 'text-align': 'center' }}>Loading dashboard...</div>}>
+      <main class="max-w-[1380px] mx-auto px-8 py-5 flex-1 w-full">
+        <Show
+          when={!loading()}
+          fallback={
+            <div class="py-16 text-center text-text-muted flex flex-col items-center justify-center gap-2">
+              <span class="inline-block w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <span class="text-sm font-medium">Loading dashboard...</span>
+            </div>
+          }
+        >
           {props.children}
         </Show>
       </main>
+      <Footer />
+      <ToastContainer />
     </div>
   );
 }

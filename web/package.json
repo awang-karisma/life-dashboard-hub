@@ -10,9 +10,12 @@
   },
   "dependencies": {
     "@solidjs/router": "^0.15.3",
+    "@tabler/icons-solidjs": "^3.49.0",
+    "@tailwindcss/vite": "^4.3.3",
     "chart.js": "^4.4.8",
     "qrcode": "^1.5.4",
-    "solid-js": "^1.9.5"
+    "solid-js": "^1.9.5",
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@types/qrcode": "^1.5.5",
