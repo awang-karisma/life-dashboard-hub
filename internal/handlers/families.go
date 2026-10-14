@@ -33,6 +33,14 @@ func NewFamiliesHandler(db *database.DB, reportsHandler *ReportsHandler) *Famili
 type CreateFamilyRequest struct {
 	Name string `json:"name"`
 }
+type UpdateFamilyRequest struct {
+	Name string `json:"name"`
+}
+type UpdateFamilySettingsRequest struct {
+	MembersCanViewOthers *bool `json:"members_can_view_others"`
+}
+
+
 
 type InviteMemberRequest struct {
 	Email string `json:"email"`
@@ -101,6 +109,12 @@ func (h *FamiliesHandler) CreateFamily(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "family name is required"})
 	}
 
+	var existingCount int64
+	h.DB.Model(&models.FamilyMembership{}).Where("user_id = ? AND status = 'active'", userID).Count(&existingCount)
+	if existingCount > 0 {
+		return c.Status(fiber.StatusConflict).JSON(ErrorResponse{Error: "you already belong to a family"})
+	}
+
 	var family models.Family
 	var membership models.FamilyMembership
 
@@ -122,7 +136,15 @@ func (h *FamiliesHandler) CreateFamily(c fiber.Ctx) error {
 			Status:   "active",
 			JoinedAt: time.Now().UTC(),
 		}
-		return tx.Create(&membership).Error
+		if err := tx.Create(&membership).Error; err != nil {
+			return err
+		}
+
+		settings := models.FamilySettings{
+			FamilyID:             family.ID,
+			MembersCanViewOthers: false,
+		}
+		return tx.Create(&settings).Error
 	})
 
 	if err != nil {
@@ -225,6 +247,177 @@ func (h *FamiliesHandler) GetFamily(c fiber.Ctx) error {
 		Members:   members,
 	})
 }
+// UpdateFamily godoc
+// @Summary      Update family details
+// @Description  Admin updates family name
+// @Tags         families
+// @Accept       json
+// @Produce      json
+// @Param        id path int true "Family ID"
+// @Param        body body UpdateFamilyRequest true "Family details"
+// @Success      200 {object} MessageResponse
+// @Failure      400 {object} ErrorResponse
+// @Failure      403 {object} ErrorResponse
+// @Router       /families/{id} [patch]
+func (h *FamiliesHandler) UpdateFamily(c fiber.Ctx) error {
+	userID := c.Locals("userID").(uint)
+	familyID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "invalid family id"})
+	}
+
+	var membership models.FamilyMembership
+	if err := h.DB.Where("family_id = ? AND user_id = ? AND status = 'active'", familyID, userID).First(&membership).Error; err != nil || membership.Role != "admin" {
+		return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{Error: "only family admins can update the family"})
+	}
+
+	var req UpdateFamilyRequest
+	if err := c.Bind().Body(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "invalid request body"})
+	}
+
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "family name is required"})
+	}
+
+	if err := h.DB.Model(&models.Family{}).Where("id = ?", familyID).Update("name", req.Name).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: "failed to update family"})
+	}
+
+	return c.JSON(MessageResponse{Message: "family updated"})
+}
+
+// DeleteFamily godoc
+// @Summary      Delete family
+// @Description  Admin deletes family and removes all memberships
+// @Tags         families
+// @Produce      json
+// @Param        id path int true "Family ID"
+// @Success      200 {object} MessageResponse
+// @Failure      400 {object} ErrorResponse
+// @Failure      403 {object} ErrorResponse
+// @Router       /families/{id} [delete]
+func (h *FamiliesHandler) DeleteFamily(c fiber.Ctx) error {
+	userID := c.Locals("userID").(uint)
+	familyID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "invalid family id"})
+	}
+
+	var membership models.FamilyMembership
+	if err := h.DB.Where("family_id = ? AND user_id = ? AND status = 'active'", familyID, userID).First(&membership).Error; err != nil || membership.Role != "admin" {
+		return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{Error: "only family admins can delete the family"})
+	}
+
+	now := time.Now().UTC()
+	err = h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.FamilyMembership{}).Where("family_id = ?", familyID).Updates(map[string]interface{}{
+			"status":  "removed",
+			"left_at": now,
+		}).Error; err != nil {
+			return err
+		}
+
+		_ = tx.Where("family_id = ?", familyID).Delete(&models.Invitation{}).Error
+		_ = tx.Where("family_id = ?", familyID).Delete(&models.FamilySettings{}).Error
+
+		return tx.Delete(&models.Family{}, familyID).Error
+	})
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: "failed to delete family"})
+	}
+
+	return c.JSON(MessageResponse{Message: "family deleted"})
+}
+
+// GetFamilySettings godoc
+// @Summary      Get family settings
+// @Description  Get settings for a family (members only)
+// @Tags         families
+// @Produce      json
+// @Param        id path int true "Family ID"
+// @Success      200 {object} models.FamilySettings
+// @Failure      400 {object} ErrorResponse
+// @Failure      403 {object} ErrorResponse
+// @Router       /families/{id}/settings [get]
+func (h *FamiliesHandler) GetFamilySettings(c fiber.Ctx) error {
+	userID := c.Locals("userID").(uint)
+	familyID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "invalid family id"})
+	}
+
+	var membership models.FamilyMembership
+	if err := h.DB.Where("family_id = ? AND user_id = ? AND status = 'active'", familyID, userID).First(&membership).Error; err != nil {
+		return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{Error: "not a member of this family"})
+	}
+
+	var settings models.FamilySettings
+	if err := h.DB.Where("family_id = ?", familyID).First(&settings).Error; err != nil {
+		settings = models.FamilySettings{
+			FamilyID:             uint(familyID),
+			MembersCanViewOthers: false,
+		}
+		_ = h.DB.Create(&settings)
+	}
+
+	return c.JSON(settings)
+}
+
+// UpdateFamilySettings godoc
+// @Summary      Update family settings
+// @Description  Admin updates family settings
+// @Tags         families
+// @Accept       json
+// @Produce      json
+// @Param        id path int true "Family ID"
+// @Param        body body UpdateFamilySettingsRequest true "Settings details"
+// @Success      200 {object} MessageResponse
+// @Failure      400 {object} ErrorResponse
+// @Failure      403 {object} ErrorResponse
+// @Router       /families/{id}/settings [patch]
+func (h *FamiliesHandler) UpdateFamilySettings(c fiber.Ctx) error {
+	userID := c.Locals("userID").(uint)
+	familyID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "invalid family id"})
+	}
+
+	var membership models.FamilyMembership
+	if err := h.DB.Where("family_id = ? AND user_id = ? AND status = 'active'", familyID, userID).First(&membership).Error; err != nil || membership.Role != "admin" {
+		return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{Error: "only family admins can update settings"})
+	}
+
+	var req UpdateFamilySettingsRequest
+	if err := c.Bind().Body(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "invalid request body"})
+	}
+
+	if req.MembersCanViewOthers == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "members_can_view_others is required"})
+	}
+
+	var settings models.FamilySettings
+	if err := h.DB.Where("family_id = ?", familyID).First(&settings).Error; err != nil {
+		settings = models.FamilySettings{
+			FamilyID:             uint(familyID),
+			MembersCanViewOthers: *req.MembersCanViewOthers,
+		}
+		if err := h.DB.Create(&settings).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: "failed to update settings"})
+		}
+	} else {
+		settings.MembersCanViewOthers = *req.MembersCanViewOthers
+		if err := h.DB.Save(&settings).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: "failed to update settings"})
+		}
+	}
+
+	return c.JSON(MessageResponse{Message: "family settings updated"})
+}
+
 
 // InviteMember godoc
 // @Summary      Invite a member to the family
@@ -327,9 +520,18 @@ func (h *FamiliesHandler) AcceptInvitation(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "invitation is expired or already used"})
 	}
 
+	var errAlreadyMember = errors.New("already a member of another family")
+
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
 		// Create or activate membership
 		var existing models.FamilyMembership
+		var existingMembership models.FamilyMembership
+		if err := tx.Where("user_id = ? AND status = 'active'", userID).First(&existingMembership).Error; err == nil {
+			if existingMembership.FamilyID != invitation.FamilyID {
+				return errAlreadyMember
+			}
+		}
+
 		err := tx.Where("family_id = ? AND user_id = ?", invitation.FamilyID, userID).First(&existing).Error
 		if err == nil {
 			existing.Role = invitation.Role
@@ -358,6 +560,9 @@ func (h *FamiliesHandler) AcceptInvitation(c fiber.Ctx) error {
 	})
 
 	if err != nil {
+		if errors.Is(err, errAlreadyMember) {
+			return c.Status(fiber.StatusConflict).JSON(ErrorResponse{Error: "you already belong to a family"})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: "failed to accept invitation"})
 	}
 
@@ -578,6 +783,13 @@ func (h *FamiliesHandler) checkMemberReportAccess(callerID uint, familyID, targe
 	if err := h.DB.Where("family_id = ? AND user_id = ? AND status = 'active'", familyID, targetUserID).First(&targetMembership).Error; err != nil {
 		return errors.New("target user not found in this family")
 	}
+	if callerMembership.Role != "admin" && callerMembership.Role != "parent" {
+		var settings models.FamilySettings
+		if err := h.DB.Where("family_id = ?", familyID).First(&settings).Error; err != nil || !settings.MembersCanViewOthers {
+			return errors.New("family settings do not allow viewing other members' data")
+		}
+	}
+
 
 	// Child member: parents and admins have access
 	if targetMembership.Role == "child" {
