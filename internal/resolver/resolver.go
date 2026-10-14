@@ -15,7 +15,6 @@ import (
 
 	"github.com/owen282000/life-dashboard-hub/internal/database"
 	"github.com/owen282000/life-dashboard-hub/internal/models"
-	"gorm.io/gorm"
 )
 
 type playStoreResult struct {
@@ -218,31 +217,6 @@ func (pr *PackageResolver) GetResolvedNames(packages []string) map[string]models
 	return result
 }
 
-// SetCustomOverride allows user to rename an app
-func (pr *PackageResolver) SetCustomOverride(pkg, customName string) error {
-	pkg = strings.TrimSpace(pkg)
-	customName = strings.TrimSpace(customName)
-	if pkg == "" || customName == "" {
-		return fmt.Errorf("package_name and app_name are required")
-	}
-
-	// Preserve existing category if present
-	var existing models.AppMetadata
-	var category string
-	if err := pr.db.Where("package_name = ?", pkg).First(&existing).Error; err == nil {
-		category = existing.Category
-	}
-
-	meta := models.AppMetadata{
-		PackageName: pkg,
-		AppName:     customName,
-		Category:    category,
-		Source:      "custom",
-		ResolvedAt:  time.Now().UTC(),
-	}
-
-	return pr.db.Session(&gorm.Session{FullSaveAssociations: true}).Save(&meta).Error
-}
 
 func FormatFallbackName(pkg string) string {
 	parts := strings.Split(pkg, ".")

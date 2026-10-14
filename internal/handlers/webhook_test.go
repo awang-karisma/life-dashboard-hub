@@ -354,3 +354,81 @@ func TestWebhookPublishesToIngestionBus(t *testing.T) {
 		t.Fatal("timed out waiting for event on bus")
 	}
 }
+
+func TestWebhookDedupScopedToDevice(t *testing.T) {
+	app, db, device1, rawToken1, secret1 := setupTestApp(t)
+
+	// Create device 2 for the same or different user
+	rawToken2 := "token-device-2-unique"
+	secret2 := "secret-device-2-unique"
+	device2 := models.Device{
+		UserID:        device1.UserID,
+		Label:         "pixel-tablet",
+		DisplayName:   "My Tablet",
+		TokenHash:     HashToken(rawToken2),
+		WebhookSecret: secret2,
+		Status:        "active",
+	}
+	if err := db.Create(&device2).Error; err != nil {
+		t.Fatalf("failed to create device 2: %v", err)
+	}
+
+	payloadJSON := []byte(`{
+		"version": 1,
+		"source": "screen_time",
+		"app_version": "1.0.0",
+		"records": [
+			{
+				"type": "screen_time",
+				"uuid": "st-dedup-test-uuid",
+				"day": "2026-10-14",
+				"data": {"total_screen_time_minutes": 120}
+			}
+		]
+	}`)
+
+	// 1. Send to Device 1
+	req1 := httptest.NewRequest("POST", "/webhooks/v1/devices/"+rawToken1, bytes.NewReader(payloadJSON))
+	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("X-Signature", signBody(payloadJSON, secret1))
+	resp1, err := app.Test(req1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var res1 map[string]interface{}
+	_ = json.NewDecoder(resp1.Body).Decode(&res1)
+	if res1["duplicate"] == true {
+		t.Errorf("expected first submission on device 1 not to be duplicate")
+	}
+	if res1["stored"] != float64(1) {
+		t.Errorf("expected stored=1 on device 1, got %v", res1["stored"])
+	}
+
+	// 2. Resend identical payload to Device 1 -> duplicate
+	req1Dup := httptest.NewRequest("POST", "/webhooks/v1/devices/"+rawToken1, bytes.NewReader(payloadJSON))
+	req1Dup.Header.Set("Content-Type", "application/json")
+	req1Dup.Header.Set("X-Signature", signBody(payloadJSON, secret1))
+	resp1Dup, _ := app.Test(req1Dup)
+	var res1Dup map[string]interface{}
+	_ = json.NewDecoder(resp1Dup.Body).Decode(&res1Dup)
+	if res1Dup["duplicate"] != true {
+		t.Errorf("expected resend to device 1 to be marked duplicate, got %+v", res1Dup)
+	}
+
+	// 3. Send identical payload to Device 2 -> NOT duplicate (device-scoped dedup)
+	req2 := httptest.NewRequest("POST", "/webhooks/v1/devices/"+rawToken2, bytes.NewReader(payloadJSON))
+	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("X-Signature", signBody(payloadJSON, secret2))
+	resp2, err := app.Test(req2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var res2 map[string]interface{}
+	_ = json.NewDecoder(resp2.Body).Decode(&res2)
+	if res2["duplicate"] == true {
+		t.Errorf("submission on device 2 was falsely marked duplicate: %+v", res2)
+	}
+	if res2["stored"] != float64(1) {
+		t.Errorf("expected stored=1 on device 2, got %v", res2["stored"])
+	}
+}

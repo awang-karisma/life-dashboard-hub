@@ -48,15 +48,6 @@ func TestPackageResolverSingleFlightAndFallback(t *testing.T) {
 		t.Errorf("expected fallback 'Uniqueapp', got '%s'", records[0].AppName)
 	}
 
-	// Test user custom override
-	if err := pr.SetCustomOverride(pkg, "My Favorite App"); err != nil {
-		t.Fatalf("SetCustomOverride failed: %v", err)
-	}
-
-	resolved := pr.GetResolvedNames([]string{pkg})
-	if resolved[pkg].AppName != "My Favorite App" || resolved[pkg].Source != "custom" {
-		t.Errorf("expected custom override 'My Favorite App', got '%s'", resolved[pkg].AppName)
-	}
 }
 func TestResolverCategoryAndOverride(t *testing.T) {
 	db, err := database.OpenTestDB("")
@@ -84,20 +75,4 @@ func TestResolverCategoryAndOverride(t *testing.T) {
 		t.Errorf("expected source 'builtin', got '%s'", meta.Source)
 	}
 
-	// Test custom override preserves category
-	if err := pr.SetCustomOverride(pkg, "My Tunes"); err != nil {
-		t.Fatalf("SetCustomOverride failed: %v", err)
-	}
-
-	resolvedAfter := pr.GetResolvedNames([]string{pkg})
-	metaAfter := resolvedAfter[pkg]
-	if metaAfter.AppName != "My Tunes" {
-		t.Errorf("expected 'My Tunes', got '%s'", metaAfter.AppName)
-	}
-	if metaAfter.Category != "MUSIC_AND_AUDIO" {
-		t.Errorf("expected preserved category 'MUSIC_AND_AUDIO', got '%s'", metaAfter.Category)
-	}
-	if metaAfter.Source != "custom" {
-		t.Errorf("expected source 'custom', got '%s'", metaAfter.Source)
-	}
 }

@@ -71,6 +71,7 @@ func setupReportsTestApp(t *testing.T) (*fiber.App, *database.DB, *models.User, 
 	reportsGroup := protected.Group("/reports")
 	reportsGroup.Get("/screen-time/daily", reportsHandler.GetScreenTimeDaily)
 	reportsGroup.Get("/screen-time/apps", reportsHandler.GetScreenTimeApps)
+	reportsGroup.Post("/screen-time/aliases", reportsHandler.SetAppAlias)
 	reportsGroup.Get("/health/daily", reportsHandler.GetHealthDailyTotals)
 	reportsGroup.Get("/health/trends", reportsHandler.GetHealthTrends)
 	reportsGroup.Get("/health/sleep", reportsHandler.GetSleep)
@@ -385,5 +386,174 @@ func TestScreenTimeAppsCategories(t *testing.T) {
 	}
 	if unknown.AppName != "App" {
 		t.Errorf("expected fallback app_name 'App', got '%s'", unknown.AppName)
+	}
+}
+
+func TestSetAppAliasUserScoped(t *testing.T) {
+	app, db, user1, d1, _, sessionCookie1 := setupReportsTestApp(t)
+	sessionService := auth.NewSessionService(db)
+
+	// Create user 2 with device
+	user2 := models.User{
+		Email:       "user2@example.com",
+		DisplayName: "User Two",
+		Status:      "active",
+		AuthMethod:  "local",
+	}
+	if err := db.Create(&user2).Error; err != nil {
+		t.Fatal(err)
+	}
+	dUser2 := models.Device{
+		UserID:      user2.ID,
+		Label:       "phone2",
+		DisplayName: "User 2 Phone",
+		TokenHash:   "hash-user2",
+		Status:      "active",
+	}
+	if err := db.Create(&dUser2).Error; err != nil {
+		t.Fatal(err)
+	}
+	sessionCookie2, _, err := sessionService.CreateSession(user2.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	day := "2026-10-12"
+	seq := int64(1)
+	appData, _ := json.Marshal(map[string]interface{}{
+		"total_screen_time_minutes": 60,
+		"apps": []map[string]interface{}{
+			{"package_name": "com.custom.notes", "app_name": "Notes", "minutes": 60},
+		},
+	})
+
+	// Seed record for user1
+	_ = db.Create(&models.Record{
+		DeviceID: d1.ID,
+		Type:     "screen_time",
+		UUID:     "st-u1",
+		Day:      &day,
+		Data:     string(appData),
+		Seq:      &seq,
+	})
+	// Seed record for user2
+	_ = db.Create(&models.Record{
+		DeviceID: dUser2.ID,
+		Type:     "screen_time",
+		UUID:     "st-u2",
+		Day:      &day,
+		Data:     string(appData),
+		Seq:      &seq,
+	})
+
+	// User 1 sets custom alias
+	aliasBody := `{"package_name": "com.custom.notes", "app_name": "My Secret Diary"}`
+	reqAlias := httptest.NewRequest("POST", "/api/v1/reports/screen-time/aliases", strings.NewReader(aliasBody))
+	reqAlias.Header.Set("Content-Type", "application/json")
+	reqAlias.AddCookie(&http.Cookie{Name: "session", Value: sessionCookie1})
+	respAlias, err := app.Test(reqAlias)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if respAlias.StatusCode != 200 {
+		t.Fatalf("expected 200 for SetAppAlias, got %d", respAlias.StatusCode)
+	}
+
+	// Verify in app_aliases table
+	var aliasEntry models.AppAlias
+	if err := db.Where("user_id = ? AND package_name = ?", user1.ID, "com.custom.notes").First(&aliasEntry).Error; err != nil {
+		t.Fatalf("alias entry not found for user 1: %v", err)
+	}
+	if aliasEntry.AppName != "My Secret Diary" {
+		t.Errorf("expected 'My Secret Diary', got '%s'", aliasEntry.AppName)
+	}
+
+	// Query user 1 screen-time apps -> custom alias applied
+	reqApps1 := httptest.NewRequest("GET", "/api/v1/reports/screen-time/apps?from=2026-10-12&to=2026-10-12", nil)
+	reqApps1.AddCookie(&http.Cookie{Name: "session", Value: sessionCookie1})
+	respApps1, _ := app.Test(reqApps1)
+	var appsResp1 PaginatedAppsResponse
+	_ = json.NewDecoder(respApps1.Body).Decode(&appsResp1)
+	if len(appsResp1.Items) != 1 || appsResp1.Items[0].AppName != "My Secret Diary" {
+		t.Errorf("expected user 1 to see 'My Secret Diary', got %+v", appsResp1.Items)
+	}
+
+	// Query user 2 screen-time apps -> User 1's custom alias NOT applied
+	reqApps2 := httptest.NewRequest("GET", "/api/v1/reports/screen-time/apps?from=2026-10-12&to=2026-10-12", nil)
+	reqApps2.AddCookie(&http.Cookie{Name: "session", Value: sessionCookie2})
+	respApps2, _ := app.Test(reqApps2)
+	var appsResp2 PaginatedAppsResponse
+	_ = json.NewDecoder(respApps2.Body).Decode(&appsResp2)
+	if len(appsResp2.Items) != 1 || appsResp2.Items[0].AppName == "My Secret Diary" {
+		t.Errorf("user 2 leaked user 1 alias: %+v", appsResp2.Items)
+	}
+}
+
+func TestDeleteDataFullCascade(t *testing.T) {
+	app, db, _, d1, _, sessionCookie := setupReportsTestApp(t)
+
+	// Seed Record, Bucket, Tombstone, Payload for d1
+	day := "2026-10-15"
+	rec := models.Record{
+		DeviceID: d1.ID,
+		Type:     "steps",
+		UUID:     "rec-del-1",
+		Day:      &day,
+		Data:     `{}`,
+	}
+	_ = db.Create(&rec)
+
+	bucket := models.Bucket{
+		DeviceID:      d1.ID,
+		Type:          "heart_rate",
+		PayloadSource: "health_connect",
+		BucketStart:   time.Now().UTC(),
+		BucketEnd:     time.Now().UTC().Add(time.Hour),
+	}
+	_ = db.Create(&bucket)
+
+	tombstone := models.Tombstone{
+		DeviceID: d1.ID,
+		Type:     "steps",
+		UUID:     "tomb-del-1",
+	}
+	_ = db.Create(&tombstone)
+
+	payload := models.Payload{
+		DeviceID:   d1.ID,
+		Source:     "companion",
+		BodySHA256: "sha-del-1",
+		Body:       `{}`,
+	}
+	_ = db.Create(&payload)
+
+	// Call DELETE /api/v1/data (no from/to -> full scope for user)
+	reqDel := httptest.NewRequest("DELETE", "/api/v1/data", nil)
+	reqDel.AddCookie(&http.Cookie{Name: "session", Value: sessionCookie})
+	respDel, err := app.Test(reqDel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if respDel.StatusCode != 200 {
+		t.Fatalf("expected 200 for full data delete, got %d", respDel.StatusCode)
+	}
+
+	var recCount, bucketCount, tombCount, payloadCount int64
+	db.Model(&models.Record{}).Where("device_id = ?", d1.ID).Count(&recCount)
+	db.Model(&models.Bucket{}).Where("device_id = ?", d1.ID).Count(&bucketCount)
+	db.Model(&models.Tombstone{}).Where("device_id = ?", d1.ID).Count(&tombCount)
+	db.Model(&models.Payload{}).Where("device_id = ?", d1.ID).Count(&payloadCount)
+
+	if recCount != 0 {
+		t.Errorf("expected 0 records, got %d", recCount)
+	}
+	if bucketCount != 0 {
+		t.Errorf("expected 0 buckets, got %d", bucketCount)
+	}
+	if tombCount != 0 {
+		t.Errorf("expected 0 tombstones, got %d", tombCount)
+	}
+	if payloadCount != 0 {
+		t.Errorf("expected 0 payloads, got %d", payloadCount)
 	}
 }

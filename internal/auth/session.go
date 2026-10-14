@@ -99,3 +99,14 @@ func (s *SessionService) RevokeSession(rawToken string) error {
 	now := time.Now().UTC()
 	return s.DB.Model(&models.Session{}).Where("id = ?", tokenHash).Update("revoked_at", &now).Error
 }
+
+// RevokeUserSessions revokes all sessions for a user except the given session hash.
+// Pass empty exceptTokenHash to revoke all.
+func (s *SessionService) RevokeUserSessions(userID uint, exceptTokenHash string) error {
+	now := time.Now().UTC()
+	q := s.DB.Model(&models.Session{}).Where("user_id = ? AND revoked_at IS NULL", userID)
+	if exceptTokenHash != "" {
+		q = q.Where("id != ?", exceptTokenHash)
+	}
+	return q.Update("revoked_at", &now).Error
+}

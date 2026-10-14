@@ -24,6 +24,13 @@ func UpsertRecord(tx *gorm.DB, dialect Dialect, r *models.Record) (int64, error)
 		r.ReceivedAt = time.Now().UTC()
 	}
 
+	// Skip insert if a tombstone exists for this UUID with equal or newer ordering
+	var tombstoneCount int64
+	tx.Model(&models.Tombstone{}).Where("type = ? AND uuid = ?", r.Type, r.UUID).Count(&tombstoneCount)
+	if tombstoneCount > 0 {
+		return 0, nil // Record was deleted; skip resurrection
+	}
+
 	var query string
 	var args []any
 

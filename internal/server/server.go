@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gofiber/contrib/v3/swaggo"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
-	"golang.org/x/time/rate"
 	"github.com/gofiber/fiber/v3/middleware/recover"
+	"golang.org/x/time/rate"
 	_ "github.com/owen282000/life-dashboard-hub/docs"
 	"github.com/owen282000/life-dashboard-hub/internal/auth"
 	"github.com/owen282000/life-dashboard-hub/internal/config"
@@ -44,11 +45,13 @@ func New(cfg *config.Config, db *database.DB) *Server {
 	app.Use(cors.New(cors.Config{
 		AllowCredentials: true,
 		AllowOriginsFunc: func(origin string) bool {
-			return true
+			if cfg.PublicURL == "" {
+				return true // dev mode: no PublicURL configured
+			}
+			return origin == strings.TrimRight(cfg.PublicURL, "/")
 		},
 		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Signature"},
 	}))
-
 	sessionService := auth.NewSessionService(db)
 	oidcClient := auth.NewOIDCClient(context.Background(), cfg)
 
@@ -149,7 +152,7 @@ func (s *Server) setupRoutes() {
 
 	protected.Post("/invitations/:token/accept", familiesHandler.AcceptInvitation)
 
-	usersHandler := handlers.NewUsersHandler(s.DB)
+	usersHandler := handlers.NewUsersHandler(s.DB, s.SessionService)
 	protected.Get("/users/me", usersHandler.GetCurrentUser)
 	protected.Patch("/users/me", usersHandler.UpdateCurrentUser)
 

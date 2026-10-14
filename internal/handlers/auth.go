@@ -227,6 +227,12 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 // @Router       /auth/logout [post]
 func (h *AuthHandler) Logout(c fiber.Ctx) error {
 	rawToken := c.Cookies("session")
+	if rawToken == "" {
+		authHeader := string(c.Request().Header.Peek("Authorization"))
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			rawToken = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+	}
 	if rawToken != "" {
 		_ = h.SessionService.RevokeSession(rawToken)
 	}
@@ -335,37 +341,37 @@ func (h *AuthHandler) OIDCCallback(c fiber.Ctx) error {
 			// 2. Look up by email
 			errEmail := h.DB.Where("email = ?", claims.Email).First(&user).Error
 			if errEmail == nil {
-				// Existing account by email -> link OIDC identity
-				user.OIDCSubject = &claims.Sub
-				user.OIDCIssuer = &h.OIDCClient.IssuerURL
-				user.AuthMethod = "oidc"
-				user.PasswordHash = ""
-				if err := h.DB.Save(&user).Error; err != nil {
-					return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: "failed to link user account"})
-				}
-			} else {
-				// Create new user
-				displayName := strings.TrimSpace(claims.Name)
-				if displayName == "" {
-					parts := strings.Split(claims.Email, "@")
-					displayName = parts[0]
-				}
-				user = models.User{
-					Email:       claims.Email,
-					DisplayName: displayName,
-					Timezone:    "UTC",
-					Status:      "active",
-					AuthMethod:  "oidc",
-					OIDCSubject: &claims.Sub,
-					OIDCIssuer:  &h.OIDCClient.IssuerURL,
-				}
-				if err := h.DB.Create(&user).Error; err != nil {
-					return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: "failed to create user account"})
-				}
+				// Email already used by a local account — refuse auto-link
+				return c.Status(fiber.StatusConflict).JSON(ErrorResponse{
+					Error: "an account with this email already exists — log in with your password first, then link SSO from settings",
+				})
+			}
+
+			// Create new user
+			displayName := strings.TrimSpace(claims.Name)
+			if displayName == "" {
+				parts := strings.Split(claims.Email, "@")
+				displayName = parts[0]
+			}
+			user = models.User{
+				Email:       claims.Email,
+				DisplayName: displayName,
+				Timezone:    "UTC",
+				Status:      "active",
+				AuthMethod:  "oidc",
+				OIDCSubject: &claims.Sub,
+				OIDCIssuer:  &h.OIDCClient.IssuerURL,
+			}
+			if err := h.DB.Create(&user).Error; err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: "failed to create user account"})
 			}
 		} else {
 			return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: "database error"})
 		}
+	}
+
+	if user.Status != "active" {
+		return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{Error: "account is " + user.Status})
 	}
 
 	rawToken, _, err := h.SessionService.CreateSession(user.ID)
