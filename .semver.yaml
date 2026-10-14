@@ -1,0 +1,15 @@
+branches:
+  - name: main
+
+rules:
+  minor:
+    - feat
+  patch:
+    - fix
+    - perf
+    - chore
+    - docs
+    - ci
+    - style
+    - refactor
+    - test

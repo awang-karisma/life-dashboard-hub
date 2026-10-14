@@ -908,6 +908,96 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "delete": {
+                "description": "Admin deletes family and removes all memberships",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "families"
+                ],
+                "summary": "Delete family",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Family ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Admin updates family name",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "families"
+                ],
+                "summary": "Update family details",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Family ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Family details",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.UpdateFamilyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
             }
         },
         "/families/{id}/children": {
@@ -993,6 +1083,98 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/handlers.InvitationResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/families/{id}/settings": {
+            "get": {
+                "description": "Get settings for a family (members only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "families"
+                ],
+                "summary": "Get family settings",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Family ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.FamilySettings"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Admin updates family settings",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "families"
+                ],
+                "summary": "Update family settings",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Family ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Settings details",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.UpdateFamilySettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
                         }
                     },
                     "403": {
@@ -1956,6 +2138,22 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.UpdateFamilyRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.UpdateFamilySettingsRequest": {
+            "type": "object",
+            "properties": {
+                "members_can_view_others": {
+                    "type": "boolean"
+                }
+            }
+        },
         "handlers.UpdateSharingRequest": {
             "type": "object",
             "properties": {
@@ -2005,6 +2203,20 @@ const docTemplate = `{
                 },
                 "timezone": {
                     "type": "string"
+                }
+            }
+        },
+        "models.FamilySettings": {
+            "type": "object",
+            "properties": {
+                "family_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "members_can_view_others": {
+                    "type": "boolean"
                 }
             }
         }

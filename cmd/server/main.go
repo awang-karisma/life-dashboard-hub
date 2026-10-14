@@ -15,9 +15,12 @@ import (
 	"github.com/awang-karisma/life-dashboard-hub/internal/config"
 	"github.com/awang-karisma/life-dashboard-hub/internal/database"
 	"github.com/awang-karisma/life-dashboard-hub/internal/server"
+	"github.com/awang-karisma/life-dashboard-hub/internal/version"
 )
 
 func main() {
+	slog.Info("starting", "version", version.Version, "commit", version.Commit)
+
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("Failed to load configuration", "error", err)

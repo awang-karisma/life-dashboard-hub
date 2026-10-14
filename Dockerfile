@@ -9,14 +9,23 @@ COPY web/ ./
 RUN npm run build
 
 # Stage 2: Build Go Server
-FROM golang:1.24-alpine AS backend-builder
+FROM golang:1.27-alpine AS backend-builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . ./
 # Copy frontend build output into embed path
 RUN mkdir -p cmd/server/dist && cp -r /web/dist/* cmd/server/dist/
-RUN CGO_ENABLED=0 GOOS=linux go build -tags embed_frontend -ldflags="-s -w" -o /app/life-dashboard-hub ./cmd/server
+ARG VERSION=dev
+ARG COMMIT=none
+ARG DATE=unknown
+
+RUN CGO_ENABLED=0 GOOS=linux go build -tags embed_frontend \
+    -ldflags="-s -w \
+    -X github.com/awang-karisma/life-dashboard-hub/internal/version.Version=${VERSION} \
+    -X github.com/awang-karisma/life-dashboard-hub/internal/version.Commit=${COMMIT} \
+    -X github.com/awang-karisma/life-dashboard-hub/internal/version.Date=${DATE}" \
+    -o /app/life-dashboard-hub ./cmd/server
 
 # Stage 3: Minimal runtime image
 FROM alpine:3.21

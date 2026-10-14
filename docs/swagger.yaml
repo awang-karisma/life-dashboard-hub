@@ -312,6 +312,16 @@ definitions:
       display_name:
         type: string
     type: object
+  handlers.UpdateFamilyRequest:
+    properties:
+      name:
+        type: string
+    type: object
+  handlers.UpdateFamilySettingsRequest:
+    properties:
+      members_can_view_others:
+        type: boolean
+    type: object
   handlers.UpdateSharingRequest:
     properties:
       sharing:
@@ -345,6 +355,15 @@ definitions:
         type: string
       timezone:
         type: string
+    type: object
+  models.FamilySettings:
+    properties:
+      family_id:
+        type: integer
+      id:
+        type: integer
+      members_can_view_others:
+        type: boolean
     type: object
 info:
   contact: {}
@@ -922,6 +941,32 @@ paths:
       tags:
       - families
   /families/{id}:
+    delete:
+      description: Admin deletes family and removes all memberships
+      parameters:
+      - description: Family ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Delete family
+      tags:
+      - families
     get:
       description: Returns family information and member roster
       parameters:
@@ -946,6 +991,40 @@ paths:
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
       summary: Get family details
+      tags:
+      - families
+    patch:
+      consumes:
+      - application/json
+      description: Admin updates family name
+      parameters:
+      - description: Family ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Family details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateFamilyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Update family details
       tags:
       - families
   /families/{id}/children:
@@ -1008,6 +1087,67 @@ paths:
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
       summary: Invite a member to the family
+      tags:
+      - families
+  /families/{id}/settings:
+    get:
+      description: Get settings for a family (members only)
+      parameters:
+      - description: Family ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.FamilySettings'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get family settings
+      tags:
+      - families
+    patch:
+      consumes:
+      - application/json
+      description: Admin updates family settings
+      parameters:
+      - description: Family ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Settings details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateFamilySettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Update family settings
       tags:
       - families
   /invitations/{token}/accept:
