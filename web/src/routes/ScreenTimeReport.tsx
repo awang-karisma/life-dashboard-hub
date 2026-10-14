@@ -178,38 +178,58 @@ export function ScreenTimeReport() {
     if (!data || !data.days) return { type: 'bar', data: { labels: [], datasets: [] } };
 
     const labels = data.days.map((d) => d.date.slice(5));
-    const hours = data.days.map((d) => Math.round((d.total_screen_time_minutes / 60) * 10) / 10);
+    const devUsage = data.device_usage;
+    const colors = ['#6366f1', '#06b6d4', '#a855f7', '#10b981', '#f59e0b'];
+    const isMultiDevice = Boolean(devUsage && devUsage.length > 1);
+
+    let datasets;
+    if (isMultiDevice && devUsage) {
+      datasets = devUsage.map((dev, idx) => ({
+        label: `${dev.device_name} (Hours)`,
+        data: data.days.map((d) => {
+          const mins = d.device_breakdown?.[dev.device_id] ?? 0;
+          return Math.round((mins / 60) * 10) / 10;
+        }),
+        backgroundColor: colors[idx % colors.length],
+        borderRadius: 4,
+      }));
+    } else {
+      const hours = data.days.map((d) => Math.round((d.total_screen_time_minutes / 60) * 10) / 10);
+      datasets = [
+        {
+          label: 'Total Screen Time (Hours)',
+          data: hours,
+          backgroundColor: '#6366f1',
+          borderRadius: 6,
+        },
+      ];
+    }
 
     return {
       type: 'bar',
       data: {
         labels,
-        datasets: [
-          {
-            label: 'Total Screen Time (Hours)',
-            data: hours,
-            backgroundColor: '#6366f1',
-            borderRadius: 6,
-          },
-        ],
+        datasets,
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: false },
+          legend: { display: isMultiDevice, labels: { color: '#94a3b8' } },
           tooltip: {
             callbacks: {
-              label: (ctx) => `${ctx.raw} hours`,
+              label: (ctx) => `${ctx.dataset.label}: ${ctx.raw} hours`,
             },
           },
         },
         scales: {
           x: {
+            stacked: true,
             grid: { display: false },
             ticks: { color: '#94a3b8' },
           },
           y: {
+            stacked: true,
             beginAtZero: true,
             grid: { color: 'rgba(255, 255, 255, 0.05)' },
             ticks: {
