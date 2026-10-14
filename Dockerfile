@@ -15,7 +15,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . ./
 # Copy frontend build output into embed path
-RUN mkdir -p cmd/server/dist && cp -r /web/dist/* cmd/server/dist/
+COPY --from=frontend-builder /web/dist ./cmd/server/dist
 ARG VERSION=dev
 ARG COMMIT=none
 ARG DATE=unknown
