@@ -91,7 +91,6 @@ jobs:
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-8)
           echo "IMAGE_BUNDLED=ghcr.io/${REPO_LOWER}" >> "$GITHUB_OUTPUT"
-          echo "IMAGE_STANDALONE=ghcr.io/${REPO_LOWER}-standalone" >> "$GITHUB_OUTPUT"
           echo "VERSION=0.0.0-dev.${SHORT_SHA}" >> "$GITHUB_OUTPUT"
           echo "DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
@@ -121,4 +120,4 @@ jobs:
             COMMIT=${{ github.sha }}
             DATE=${{ steps.meta.outputs.DATE }}
           tags: |
-            ${{ steps.meta.outputs.IMAGE_STANDALONE }}:dev
+            ${{ steps.meta.outputs.IMAGE_BUNDLED }}:dev-standalone

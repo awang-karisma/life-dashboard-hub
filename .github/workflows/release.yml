@@ -145,7 +145,6 @@ jobs:
         run: |
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "IMAGE_BUNDLED=ghcr.io/${REPO_LOWER}" >> "$GITHUB_OUTPUT"
-          echo "IMAGE_STANDALONE=ghcr.io/${REPO_LOWER}-standalone" >> "$GITHUB_OUTPUT"
           echo "DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - name: Build and push bundled Docker image
@@ -175,8 +174,8 @@ jobs:
             COMMIT=${{ github.sha }}
             DATE=${{ steps.meta.outputs.DATE }}
           tags: |
-            ${{ steps.meta.outputs.IMAGE_STANDALONE }}:${{ needs.version.outputs.NEW_VERSION }}
-            ${{ steps.meta.outputs.IMAGE_STANDALONE }}:latest
+            ${{ steps.meta.outputs.IMAGE_BUNDLED }}:${{ needs.version.outputs.NEW_VERSION }}-standalone
+            ${{ steps.meta.outputs.IMAGE_BUNDLED }}:latest-standalone
 
   release:
     name: GitHub Release

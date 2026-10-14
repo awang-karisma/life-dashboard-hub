@@ -1,4 +1,4 @@
-.PHONY: dev swagger build embed test test-pg docker clean
+.PHONY: dev swagger build embed test test-pg docker docker-standalone docker-all clean
 
 SWAG := $(shell which swag 2>/dev/null || echo $(shell go env GOPATH)/bin/swag)
 VERSION ?= dev
@@ -28,6 +28,11 @@ test-pg:
 
 docker:
 	docker build -t life-dashboard-hub .
+
+docker-standalone:
+	docker build -t life-dashboard-hub:latest-standalone -f Dockerfile.standalone .
+
+docker-all: docker docker-standalone
 
 clean:
 	rm -rf bin/ docs/
