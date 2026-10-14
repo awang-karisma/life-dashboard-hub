@@ -172,11 +172,27 @@ func TestScreenTimeReportMultiDevice(t *testing.T) {
 	if respApps.StatusCode != 200 {
 		t.Fatalf("expected 200 for apps, got %d", respApps.StatusCode)
 	}
-	var appsResp []AppUsageSummary
+	var appsResp PaginatedAppsResponse
 	_ = json.NewDecoder(respApps.Body).Decode(&appsResp)
 
-	if len(appsResp) != 3 {
-		t.Fatalf("expected 3 apps, got %d", len(appsResp))
+	if appsResp.Total != 3 {
+		t.Fatalf("expected total 3 apps, got %d", appsResp.Total)
+	}
+	if len(appsResp.Items) != 3 {
+		t.Fatalf("expected 3 apps items, got %d", len(appsResp.Items))
+	}
+
+	// Test pagination with limit=1, offset=1
+	reqPage := httptest.NewRequest("GET", "/api/v1/reports/screen-time/apps?from=2026-10-01&to=2026-10-07&limit=1&offset=1", nil)
+	reqPage.AddCookie(&http.Cookie{Name: "session", Value: sessionCookie})
+	respPage, _ := app.Test(reqPage)
+	var pageResp PaginatedAppsResponse
+	_ = json.NewDecoder(respPage.Body).Decode(&pageResp)
+	if pageResp.Total != 3 || len(pageResp.Items) != 1 || pageResp.Offset != 1 || pageResp.Limit != 1 {
+		t.Fatalf("expected paginated total 3, items 1, offset 1, limit 1; got %+v", pageResp)
+	}
+	if pageResp.Items[0].PackageName != appsResp.Items[1].PackageName {
+		t.Fatalf("expected offset 1 item to match second item of full list")
 	}
 }
 
@@ -328,11 +344,15 @@ func TestScreenTimeAppsCategories(t *testing.T) {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
 	}
 
-	var apps []AppUsageSummary
-	if err := json.NewDecoder(resp.Body).Decode(&apps); err != nil {
+	var paginatedResp PaginatedAppsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&paginatedResp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
+	apps := paginatedResp.Items
 
+	if paginatedResp.Total != 2 {
+		t.Fatalf("expected total 2 apps, got %d", paginatedResp.Total)
+	}
 	if len(apps) != 2 {
 		t.Fatalf("expected 2 apps, got %d", len(apps))
 	}

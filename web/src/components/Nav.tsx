@@ -151,7 +151,7 @@ export function Nav(props: NavProps) {
             onClick={() => {
               const inviteBtn = document.getElementById('open-invite-modal-btn');
               if (inviteBtn) inviteBtn.click();
-              else showToast('Open Invite Member in Family page', 'info');
+              else showToast('Create a family first to invite members', 'info');
             }}
             class="bg-primary hover:bg-primary-hover text-white px-3.5 py-1.5 rounded-sm font-semibold text-xs transition-all hover:-translate-y-px flex items-center gap-1.5 cursor-pointer shadow-sm"
           >

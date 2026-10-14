@@ -97,6 +97,13 @@ interface DeviceOption {
   display_name: string;
   label?: string;
 }
+interface PaginatedApps {
+  total: number;
+  offset: number;
+  limit: number;
+  items: AppUsage[];
+}
+
 
 export function ScreenTimeReport() {
   const [from, setFrom] = createSignal(getDaysAgoISO(6));
@@ -105,31 +112,54 @@ export function ScreenTimeReport() {
   const [devices, setDevices] = createSignal<DeviceOption[]>([]);
   const [dailyData, setDailyData] = createSignal<DailyReportResponse | null>(null);
   const [appsData, setAppsData] = createSignal<AppUsage[]>([]);
+  const [appsPage, setAppsPage] = createSignal(0);
+  const [appsTotal, setAppsTotal] = createSignal(0);
+  const appsPerPage = 25;
   const [loading, setLoading] = createSignal(false);
   const [searchQuery, setSearchQuery] = createSignal('');
   const [hideSystemUI, setHideSystemUI] = createSignal(true);
-
   const loadData = async () => {
     setLoading(true);
+    setAppsPage(0);
     try {
       let url = `/api/v1/reports/screen-time/daily?from=${from()}&to=${to()}`;
       if (deviceId()) url += `&device_id=${deviceId()}`;
 
-      let appsUrl = `/api/v1/reports/screen-time/apps?from=${from()}&to=${to()}&limit=50`;
+      let appsUrl = `/api/v1/reports/screen-time/apps?from=${from()}&to=${to()}&limit=${appsPerPage}&offset=0`;
       if (deviceId()) appsUrl += `&device_id=${deviceId()}`;
 
-      const [daily, apps] = await Promise.all([
+      const [daily, appsRes] = await Promise.all([
         ApiClient.get<DailyReportResponse>(url),
-        ApiClient.get<AppUsage[]>(appsUrl),
+        ApiClient.get<PaginatedApps>(appsUrl),
       ]);
 
       setDailyData(daily);
-      setAppsData(apps || []);
+      if (appsRes) {
+        setAppsData(appsRes.items || []);
+        setAppsTotal(appsRes.total || 0);
+      } else {
+        setAppsData([]);
+        setAppsTotal(0);
+      }
     } catch (err) {
       console.error('Failed to load screen time report:', err);
       showToast('Failed to load screen time data', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAppsPage = async (page: number) => {
+    setAppsPage(page);
+    let appsUrl = `/api/v1/reports/screen-time/apps?from=${from()}&to=${to()}&limit=${appsPerPage}&offset=${page * appsPerPage}`;
+    if (deviceId()) appsUrl += `&device_id=${deviceId()}`;
+    try {
+      const res = await ApiClient.get<PaginatedApps>(appsUrl);
+      setAppsData(res?.items || []);
+      setAppsTotal(res?.total || 0);
+    } catch (err) {
+      console.error('Failed to load page of apps:', err);
+      showToast('Failed to load page of applications', 'error');
     }
   };
 
@@ -540,6 +570,31 @@ export function ScreenTimeReport() {
                   </For>
                 </tbody>
               </table>
+            </div>
+          </Show>
+          <Show when={appsTotal() > appsPerPage}>
+            <div class="flex items-center justify-between mt-4 pt-3 border-t border-border-default">
+              <span class="text-xs text-text-muted">
+                Showing {appsPage() * appsPerPage + 1}–{Math.min((appsPage() + 1) * appsPerPage, appsTotal())} of {appsTotal()}
+              </span>
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={appsPage() === 0}
+                  onClick={() => loadAppsPage(appsPage() - 1)}
+                  class="px-2.5 py-1 rounded-sm text-xs bg-white/5 hover:bg-white/10 text-text-muted hover:text-text-primary border border-border-default disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer font-semibold transition-all"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  disabled={(appsPage() + 1) * appsPerPage >= appsTotal()}
+                  onClick={() => loadAppsPage(appsPage() + 1)}
+                  class="px-2.5 py-1 rounded-sm text-xs bg-white/5 hover:bg-white/10 text-text-muted hover:text-text-primary border border-border-default disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer font-semibold transition-all"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </Show>
         </div>

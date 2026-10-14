@@ -78,6 +78,13 @@ type AppUsageSummary struct {
 	Category    string `json:"category"`
 	Minutes     int64  `json:"minutes"`
 }
+type PaginatedAppsResponse struct {
+	Total  int               `json:"total"`
+	Offset int               `json:"offset"`
+	Limit  int               `json:"limit"`
+	Items  []AppUsageSummary `json:"items"`
+}
+
 
 type HealthDailySummary struct {
 	Date           string  `json:"date"`
@@ -248,12 +255,24 @@ func (h *ReportsHandler) GetScreenTimeApps(c fiber.Ctx) error {
 		}
 	}
 
+	offset := 0
+	if off := c.Query("offset"); off != "" {
+		if o, err := strconv.Atoi(off); err == nil && o >= 0 {
+			offset = o
+		}
+	}
+
 	deviceIDs, err := h.getUserDeviceIDs(userID, deviceIDParam)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: err.Error()})
 	}
 	if len(deviceIDs) == 0 {
-		return c.JSON([]AppUsageSummary{})
+		return c.JSON(PaginatedAppsResponse{
+			Total:  0,
+			Offset: offset,
+			Limit:  limit,
+			Items:  []AppUsageSummary{},
+		})
 	}
 
 	query := h.DB.Where("type = 'screen_time' AND device_id IN (?)", deviceIDs)
@@ -361,11 +380,23 @@ func (h *ReportsHandler) GetScreenTimeApps(c fiber.Ctx) error {
 		return result[i].Minutes > result[j].Minutes
 	})
 
-	if len(result) > limit {
-		result = result[:limit]
+	total := len(result)
+	if offset > len(result) {
+		result = []AppUsageSummary{}
+	} else {
+		end := offset + limit
+		if end > len(result) {
+			end = len(result)
+		}
+		result = result[offset:end]
 	}
 
-	return c.JSON(result)
+	return c.JSON(PaginatedAppsResponse{
+		Total:  total,
+		Offset: offset,
+		Limit:  limit,
+		Items:  result,
+	})
 }
 
 type UpdateAppAliasRequest struct {
