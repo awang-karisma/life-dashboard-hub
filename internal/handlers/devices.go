@@ -101,9 +101,16 @@ func generateCredentials() (token string, tokenHash string, secret string, err e
 	return token, tokenHash, secret, nil
 }
 
+// TODO: later implement config for changing this
+const defaultInstanceName = "Life Dashboard Hub"
+
 func (h *DevicesHandler) buildPairingQR(webhookURL, secret, name string) string {
+	if name == "" {
+		name = defaultInstanceName
+	}
+	encodedName := strings.ReplaceAll(url.QueryEscape(name), "+", "%20")
 	return fmt.Sprintf("lifedashboard://pair#v=1&url=%s&secret=%s&name=%s&sources=health_connect,screen_time",
-		url.QueryEscape(webhookURL), secret, url.QueryEscape(name))
+		url.QueryEscape(webhookURL), secret, encodedName)
 }
 
 // CreateDevice godoc
@@ -171,7 +178,7 @@ func (h *DevicesHandler) CreateDevice(c fiber.Ctx) error {
 		baseURL = c.BaseURL()
 	}
 	webhookURL := fmt.Sprintf("%s/webhooks/v1/devices/%s", baseURL, token)
-	pairingQR := h.buildPairingQR(webhookURL, secret, displayName)
+	pairingQR := h.buildPairingQR(webhookURL, secret, defaultInstanceName)
 
 	return c.Status(fiber.StatusCreated).JSON(DeviceCredentialsResponse{
 		DeviceResponse: toDeviceResponse(&device),
@@ -414,7 +421,7 @@ func (h *DevicesHandler) RegenerateDeviceCredentials(c fiber.Ctx) error {
 		baseURL = c.BaseURL()
 	}
 	webhookURL := fmt.Sprintf("%s/webhooks/v1/devices/%s", baseURL, token)
-	pairingQR := h.buildPairingQR(webhookURL, secret, device.DisplayName)
+	pairingQR := h.buildPairingQR(webhookURL, secret, defaultInstanceName)
 
 	return c.JSON(DeviceCredentialsResponse{
 		DeviceResponse: toDeviceResponse(&device),

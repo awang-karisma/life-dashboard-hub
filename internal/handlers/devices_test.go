@@ -103,6 +103,9 @@ func TestDeviceCRUDAndCredentials(t *testing.T) {
 	if !strings.Contains(qr, "sources=health_connect,screen_time") {
 		t.Errorf("pairing qr does not contain sources: %s", qr)
 	}
+	if !strings.Contains(qr, "name=Life%20Dashboard%20Hub") {
+		t.Errorf("pairing qr does not contain instance name: %s", qr)
+	}
 
 	deviceID := credResp.ID
 
@@ -164,6 +167,9 @@ func TestDeviceCRUDAndCredentials(t *testing.T) {
 	}
 	if regenCreds.WebhookSecret == credResp.WebhookSecret {
 		t.Errorf("expected new webhook secret on regenerate, got same")
+	}
+	if !strings.Contains(regenCreds.PairingQR, "name=Life%20Dashboard%20Hub") {
+		t.Errorf("regenerated pairing qr does not contain instance name: %s", regenCreds.PairingQR)
 	}
 
 	// 7. Revoke Device
