@@ -213,3 +213,42 @@ func TestUpsertBucketLogic(t *testing.T) {
 		t.Errorf("expected total 1400.0, got %f", *stored.Total)
 	}
 }
+
+func TestTombstonePreventsRecordUpsert(t *testing.T) {
+	db, err := OpenTestDB("")
+	if err != nil {
+		t.Fatalf("OpenTestDB failed: %v", err)
+	}
+
+	// 1. Insert a tombstone for (type="steps", uuid="abc")
+	tombstone := models.Tombstone{
+		Type:     "steps",
+		UUID:     "abc",
+		DeviceID: 1,
+	}
+	if err := db.Create(&tombstone).Error; err != nil {
+		t.Fatalf("failed to insert tombstone: %v", err)
+	}
+
+	// 2. Call UpsertRecord with same type/uuid
+	day := "2026-10-12"
+	r := &models.Record{
+		Type:          "steps",
+		UUID:          "abc",
+		DeviceID:      1,
+		SourceApp:     "companion",
+		PayloadSource: "health_connect",
+		Day:           &day,
+		Data:          `{"steps": 5000}`,
+	}
+
+	rowsAffected, err := UpsertRecord(db.DB, db.Dialect, r)
+	if err != nil {
+		t.Fatalf("UpsertRecord failed: %v", err)
+	}
+
+	// 3. Asserts rowsAffected == 0
+	if rowsAffected != 0 {
+		t.Fatalf("expected rowsAffected == 0, got %d", rowsAffected)
+	}
+}

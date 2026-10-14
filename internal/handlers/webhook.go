@@ -127,6 +127,7 @@ func (h *WebhookHandler) HandleWebhook(c fiber.Ctx) error {
 			}
 			h.Bus.Publish(IngestionEvent{
 				Timestamp:  now,
+				UserID:     device.UserID,
 				DeviceID:   device.ID,
 				DeviceName: dName,
 				Source:     parsed.Source,
@@ -149,7 +150,7 @@ func (h *WebhookHandler) HandleWebhook(c fiber.Ctx) error {
 	bodySHA256 := hex.EncodeToString(hSHA.Sum(nil))
 
 	var existingPayload models.Payload
-	if err := h.DB.Where("body_sha256 = ?", bodySHA256).First(&existingPayload).Error; err == nil {
+	if err := h.DB.Where("device_id = ? AND body_sha256 = ?", device.ID, bodySHA256).First(&existingPayload).Error; err == nil {
 		// Found duplicate
 		return c.JSON(fiber.Map{
 			"duplicate": true,
@@ -239,6 +240,7 @@ func (h *WebhookHandler) HandleWebhook(c fiber.Ctx) error {
 		}
 		h.Bus.Publish(IngestionEvent{
 			Timestamp:  now,
+			UserID:     device.UserID,
 			DeviceID:   device.ID,
 			DeviceName: dName,
 			Source:     parsed.Source,

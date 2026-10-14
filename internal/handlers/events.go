@@ -24,6 +24,7 @@ func (h *EventsHandler) StreamIngestion(c fiber.Ctx) error {
 	c.Set("Cache-Control", "no-cache")
 	c.Set("Connection", "keep-alive")
 	c.Set("X-Accel-Buffering", "no")
+	userID, _ := c.Locals("userID").(uint)
 
 	subID, eventCh := h.Bus.Subscribe()
 	recentEvents := h.Bus.Recent()
@@ -34,6 +35,9 @@ func (h *EventsHandler) StreamIngestion(c fiber.Ctx) error {
 
 		// Send recent events for initial hydration
 		for _, ev := range recentEvents {
+			if ev.UserID != userID {
+				continue
+			}
 			data, err := json.Marshal(ev)
 			if err != nil {
 				continue
@@ -56,6 +60,9 @@ func (h *EventsHandler) StreamIngestion(c fiber.Ctx) error {
 			case ev, ok := <-eventCh:
 				if !ok {
 					return
+				}
+				if ev.UserID != userID {
+					continue
 				}
 				data, err := json.Marshal(ev)
 				if err != nil {

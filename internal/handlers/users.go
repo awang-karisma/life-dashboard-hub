@@ -4,17 +4,19 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/awang-karisma/life-dashboard-hub/internal/auth"
 	"github.com/awang-karisma/life-dashboard-hub/internal/database"
 	"github.com/awang-karisma/life-dashboard-hub/internal/models"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type UsersHandler struct {
-	DB *database.DB
+	DB             *database.DB
+	SessionService *auth.SessionService
 }
 
-func NewUsersHandler(db *database.DB) *UsersHandler {
-	return &UsersHandler{DB: db}
+func NewUsersHandler(db *database.DB, sessionService *auth.SessionService) *UsersHandler {
+	return &UsersHandler{DB: db, SessionService: sessionService}
 }
 
 type UpdateUserRequest struct {
@@ -116,6 +118,18 @@ func (h *UsersHandler) UpdateCurrentUser(c fiber.Ctx) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: "failed to hash password"})
 		}
 		user.PasswordHash = string(newHash)
+		if h.SessionService != nil {
+			// Revoke all other sessions after password change
+			rawToken := c.Cookies("session")
+			if rawToken == "" {
+				authHeader := string(c.Request().Header.Peek("Authorization"))
+				if strings.HasPrefix(authHeader, "Bearer ") {
+					rawToken = strings.TrimPrefix(authHeader, "Bearer ")
+				}
+			}
+			currentHash := auth.HashToken(rawToken)
+			_ = h.SessionService.RevokeUserSessions(userID, currentHash)
+		}
 	}
 
 	if err := h.DB.Save(&user).Error; err != nil {

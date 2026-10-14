@@ -13,6 +13,7 @@ import (
 	"github.com/awang-karisma/life-dashboard-hub/internal/database"
 	"github.com/awang-karisma/life-dashboard-hub/internal/models"
 	"github.com/awang-karisma/life-dashboard-hub/internal/resolver"
+	"gorm.io/gorm"
 )
 
 type ReportsHandler struct {
@@ -357,6 +358,28 @@ func (h *ReportsHandler) GetScreenTimeApps(c fiber.Ctx) error {
 	var resolved map[string]models.AppMetadata
 	if h.Resolver != nil {
 		resolved = h.Resolver.GetResolvedNames(pkgList)
+	} else {
+		resolved = make(map[string]models.AppMetadata)
+	}
+	if resolved == nil {
+		resolved = make(map[string]models.AppMetadata)
+	}
+
+	var aliases []models.AppAlias
+	if len(pkgList) > 0 {
+		h.DB.Where("user_id = ? AND package_name IN (?)", userID, pkgList).Find(&aliases)
+		for _, a := range aliases {
+			if meta, ok := resolved[a.PackageName]; ok {
+				meta.AppName = a.AppName
+				resolved[a.PackageName] = meta
+			} else {
+				resolved[a.PackageName] = models.AppMetadata{
+					PackageName: a.PackageName,
+					AppName:     a.AppName,
+					Source:      "custom",
+				}
+			}
+		}
 	}
 
 	result := make([]AppUsageSummary, 0, len(appTotals))
@@ -377,7 +400,10 @@ func (h *ReportsHandler) GetScreenTimeApps(c fiber.Ctx) error {
 		result = append(result, *summary)
 	}
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].Minutes > result[j].Minutes
+		if result[i].Minutes != result[j].Minutes {
+			return result[i].Minutes > result[j].Minutes
+		}
+		return result[i].PackageName < result[j].PackageName
 	})
 
 	total := len(result)
@@ -415,6 +441,7 @@ type UpdateAppAliasRequest struct {
 // @Failure      400 {object} ErrorResponse
 // @Router       /reports/screen-time/aliases [post]
 func (h *ReportsHandler) SetAppAlias(c fiber.Ctx) error {
+	userID := c.Locals("userID").(uint)
 	var req UpdateAppAliasRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "invalid request body"})
@@ -426,10 +453,16 @@ func (h *ReportsHandler) SetAppAlias(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "package_name and app_name are required"})
 	}
 
-	if h.Resolver != nil {
-		if err := h.Resolver.SetCustomOverride(req.PackageName, req.AppName); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: err.Error()})
-		}
+	alias := models.AppAlias{
+		UserID:      userID,
+		PackageName: req.PackageName,
+		AppName:     req.AppName,
+	}
+	err := h.DB.Where("user_id = ? AND package_name = ?", userID, req.PackageName).
+		Assign(models.AppAlias{AppName: req.AppName}).
+		FirstOrCreate(&alias).Error
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: "failed to save alias"})
 	}
 
 	return c.JSON(MessageResponse{Message: "app name updated successfully"})
@@ -850,16 +883,48 @@ func (h *ReportsHandler) DeleteData(c fiber.Ctx) error {
 		return c.JSON(MessageResponse{Message: "no records found to delete"})
 	}
 
-	query := h.DB.Where("device_id IN (?)", deviceIDs)
-	if from != "" {
-		query = query.Where("day >= ?", from)
-	}
-	if to != "" {
-		query = query.Where("day <= ?", to)
-	}
+	err = h.DB.Transaction(func(tx *gorm.DB) error {
+		buildQuery := func() *gorm.DB {
+			q := tx.Where("device_id IN (?)", deviceIDs)
+			if from != "" {
+				q = q.Where("day >= ?", from)
+			}
+			if to != "" {
+				q = q.Where("day <= ?", to)
+			}
+			return q
+		}
 
-	if err := query.Delete(&models.Record{}).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: "failed to delete records"})
+		if err := buildQuery().Delete(&models.Record{}).Error; err != nil {
+			return err
+		}
+
+		// Buckets use bucket_start (time.Time), not day — string dates work via DB driver coercion
+		bucketQ := tx.Where("device_id IN (?)", deviceIDs)
+		if from != "" {
+			bucketQ = bucketQ.Where("bucket_start >= ?", from)
+		}
+		if to != "" {
+			bucketQ = bucketQ.Where("bucket_start < ?", to+"T23:59:59Z")
+		}
+		if err := bucketQ.Delete(&models.Bucket{}).Error; err != nil {
+			return err
+		}
+
+		// Tombstones and Payloads don't have a day column — delete by device scope only
+		if from == "" && to == "" {
+			if err := tx.Where("device_id IN (?)", deviceIDs).Delete(&models.Tombstone{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("device_id IN (?)", deviceIDs).Delete(&models.Payload{}).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: "failed to delete data"})
 	}
 
 	return c.JSON(MessageResponse{Message: "data deleted successfully"})

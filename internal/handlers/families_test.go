@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/awang-karisma/life-dashboard-hub/internal/auth"
@@ -72,7 +73,7 @@ func setupFamilyTestApp(t *testing.T) (*fiber.App, *database.DB, *auth.SessionSe
 }
 
 func TestFamilyCreationInvitationAndSharing(t *testing.T) {
-	app, db, _, parent, adult, parentCookie, adultCookie := setupFamilyTestApp(t)
+	app, db, sessionService, parent, adult, parentCookie, adultCookie := setupFamilyTestApp(t)
 
 	// 1. Parent creates family
 	createReq := httptest.NewRequest("POST", "/api/v1/families", strings.NewReader(`{"name": "The Smiths"}`))
@@ -147,13 +148,47 @@ func TestFamilyCreationInvitationAndSharing(t *testing.T) {
 		Seq:      &seq,
 	})
 
-	// 5. Parent attempts to view adult's reports with sharing="none" -> 403 Forbidden
+	// 5. Parent (admin) can view adult's reports even with sharing="none" (admin/parent bypass)
 	viewDailyURL := fmt.Sprintf("/api/v1/families/%d/members/%d/reports/screen-time/daily", familyID, adult.ID)
 	viewReq := httptest.NewRequest("GET", viewDailyURL, nil)
 	viewReq.AddCookie(&http.Cookie{Name: "session", Value: parentCookie})
 	viewResp, _ := app.Test(viewReq)
-	if viewResp.StatusCode != 403 {
-		t.Errorf("expected 403 when sharing=none, got %d", viewResp.StatusCode)
+	if viewResp.StatusCode != 200 {
+		t.Errorf("expected 200 for admin/parent bypass when sharing=none, got %d", viewResp.StatusCode)
+	}
+
+	// Set up second adult member to verify adult-to-adult sharing restrictions
+	adult2User := models.User{
+		Email:       "adult2@example.com",
+		DisplayName: "Adult 2 User",
+		Status:      "active",
+		AuthMethod:  "local",
+	}
+	if err := db.Create(&adult2User).Error; err != nil {
+		t.Fatal(err)
+	}
+	adult2Cookie, _, _ := sessionService.CreateSession(adult2User.ID)
+	adult2Membership := models.FamilyMembership{
+		FamilyID: familyID,
+		UserID:   adult2User.ID,
+		Role:     "adult",
+		Sharing:  "detailed",
+		Status:   "active",
+		JoinedAt: time.Now().UTC(),
+	}
+	if err := db.Create(&adult2Membership).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	// Enable MembersCanViewOthers in FamilySettings so adult2 is permitted to view other members
+	_ = db.Model(&models.FamilySettings{}).Where("family_id = ?", familyID).Update("members_can_view_others", true)
+
+	// Adult 2 attempts to view adult 1 reports with sharing="none" -> 403 Forbidden
+	viewReqAdult2 := httptest.NewRequest("GET", viewDailyURL, nil)
+	viewReqAdult2.AddCookie(&http.Cookie{Name: "session", Value: adult2Cookie})
+	respAdult2None, _ := app.Test(viewReqAdult2)
+	if respAdult2None.StatusCode != 403 {
+		t.Errorf("expected 403 for non-parent adult when target sharing=none, got %d", respAdult2None.StatusCode)
 	}
 
 	// 6. Adult updates sharing to "summary"
@@ -166,19 +201,27 @@ func TestFamilyCreationInvitationAndSharing(t *testing.T) {
 		t.Fatalf("expected 200 on update sharing, got %d", shareResp.StatusCode)
 	}
 
-	// Parent views daily totals -> 200 OK
-	viewRespSummary, _ := app.Test(viewReq)
-	if viewRespSummary.StatusCode != 200 {
-		t.Errorf("expected 200 for summary sharing, got %d", viewRespSummary.StatusCode)
+	// Adult 2 views daily totals -> 200 OK (summary allowed)
+	respAdult2Summary, _ := app.Test(viewReqAdult2)
+	if respAdult2Summary.StatusCode != 200 {
+		t.Errorf("expected 200 for summary sharing from adult 2, got %d", respAdult2Summary.StatusCode)
 	}
 
-	// But parent views apps breakdown -> 403 Forbidden
+	// Adult 2 views apps breakdown -> 403 Forbidden (detailed not allowed when sharing=summary)
 	viewAppsURL := fmt.Sprintf("/api/v1/families/%d/members/%d/reports/screen-time/apps", familyID, adult.ID)
-	viewAppsReq := httptest.NewRequest("GET", viewAppsURL, nil)
-	viewAppsReq.AddCookie(&http.Cookie{Name: "session", Value: parentCookie})
-	viewAppsResp, _ := app.Test(viewAppsReq)
-	if viewAppsResp.StatusCode != 403 {
-		t.Errorf("expected 403 for apps breakdown when sharing=summary, got %d", viewAppsResp.StatusCode)
+	viewAppsReqAdult2 := httptest.NewRequest("GET", viewAppsURL, nil)
+	viewAppsReqAdult2.AddCookie(&http.Cookie{Name: "session", Value: adult2Cookie})
+	respAdult2Apps, _ := app.Test(viewAppsReqAdult2)
+	if respAdult2Apps.StatusCode != 403 {
+		t.Errorf("expected 403 for apps breakdown from adult 2 when sharing=summary, got %d", respAdult2Apps.StatusCode)
+	}
+
+	// But parent (admin) views apps breakdown even when sharing=summary -> 200 OK
+	viewAppsReqParent := httptest.NewRequest("GET", viewAppsURL, nil)
+	viewAppsReqParent.AddCookie(&http.Cookie{Name: "session", Value: parentCookie})
+	viewAppsRespParent, _ := app.Test(viewAppsReqParent)
+	if viewAppsRespParent.StatusCode != 200 {
+		t.Errorf("expected 200 for parent viewing apps breakdown with admin bypass, got %d", viewAppsRespParent.StatusCode)
 	}
 
 	// 7. Adult updates sharing to "detailed"
@@ -187,12 +230,11 @@ func TestFamilyCreationInvitationAndSharing(t *testing.T) {
 	shareReq2.AddCookie(&http.Cookie{Name: "session", Value: adultCookie})
 	_, _ = app.Test(shareReq2)
 
-	// Parent views apps breakdown -> 200 OK
-	viewAppsResp2, _ := app.Test(viewAppsReq)
-	if viewAppsResp2.StatusCode != 200 {
-		t.Errorf("expected 200 for apps breakdown when sharing=detailed, got %d", viewAppsResp2.StatusCode)
+	// Adult 2 views apps breakdown -> 200 OK
+	respAdult2AppsDetailed, _ := app.Test(viewAppsReqAdult2)
+	if respAdult2AppsDetailed.StatusCode != 200 {
+		t.Errorf("expected 200 for apps breakdown when sharing=detailed, got %d", respAdult2AppsDetailed.StatusCode)
 	}
-
 	// 8. Create child account
 	childReq := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/families/%d/children", familyID), strings.NewReader(`{"display_name": "Kiddo", "password": "kidpassword123"}`))
 	childReq.Header.Set("Content-Type", "application/json")
@@ -505,5 +547,64 @@ func TestFamilySettingsAndReportAccess(t *testing.T) {
 	viewResp2, _ := app.Test(viewReq2)
 	if viewResp2.StatusCode != 200 {
 		t.Fatalf("expected 200 when members_can_view_others=true and sharing=detailed, got %d", viewResp2.StatusCode)
+	}
+}
+
+func TestInvitationEmailValidation(t *testing.T) {
+	app, db, sessionService, _, _, parentCookie, _ := setupFamilyTestApp(t)
+
+	// 1. Create family
+	createReq := httptest.NewRequest("POST", "/api/v1/families", strings.NewReader(`{"name": "Invite Test Fam"}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq.AddCookie(&http.Cookie{Name: "session", Value: parentCookie})
+	createResp, err := app.Test(createReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var famResp FamilyResponse
+	_ = json.NewDecoder(createResp.Body).Decode(&famResp)
+	familyID := famResp.ID
+
+	// 2. Invite intended@example.com
+	inviteReq := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/families/%d/invitations", familyID), strings.NewReader(`{"email": "intended@example.com", "role": "adult"}`))
+	inviteReq.Header.Set("Content-Type", "application/json")
+	inviteReq.AddCookie(&http.Cookie{Name: "session", Value: parentCookie})
+	inviteResp, _ := app.Test(inviteReq)
+	var invResp InvitationResponse
+	_ = json.NewDecoder(inviteResp.Body).Decode(&invResp)
+	inviteToken := invResp.InviteToken
+
+	// 3. Intruder attempts to accept
+	intruder := models.User{
+		Email:       "intruder@example.com",
+		DisplayName: "Intruder User",
+		Status:      "active",
+		AuthMethod:  "local",
+	}
+	_ = db.Create(&intruder)
+	intruderCookie, _, _ := sessionService.CreateSession(intruder.ID)
+
+	intruderReq := httptest.NewRequest("POST", "/api/v1/invitations/"+inviteToken+"/accept", nil)
+	intruderReq.AddCookie(&http.Cookie{Name: "session", Value: intruderCookie})
+	intruderResp, _ := app.Test(intruderReq)
+	if intruderResp.StatusCode != 403 {
+		t.Errorf("expected 403 for wrong email accepting invitation, got %d", intruderResp.StatusCode)
+	}
+
+	// 4. Intended recipient accepts -> 200 OK
+	intended := models.User{
+		Email:       "intended@example.com",
+		DisplayName: "Intended User",
+		Status:      "active",
+		AuthMethod:  "local",
+	}
+	_ = db.Create(&intended)
+	intendedCookie, _, _ := sessionService.CreateSession(intended.ID)
+
+	intendedReq := httptest.NewRequest("POST", "/api/v1/invitations/"+inviteToken+"/accept", nil)
+	intendedReq.AddCookie(&http.Cookie{Name: "session", Value: intendedCookie})
+	intendedResp, _ := app.Test(intendedReq)
+	if intendedResp.StatusCode != 200 {
+		t.Errorf("expected 200 for intended email accepting invitation, got %d", intendedResp.StatusCode)
 	}
 }

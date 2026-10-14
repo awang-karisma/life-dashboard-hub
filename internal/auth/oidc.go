@@ -18,6 +18,7 @@ type OIDCClient struct {
 	ClientID     string
 	OAuth2Config *oauth2.Config
 	Verifier     *oidc.IDTokenVerifier
+	ExchangeFunc func(ctx context.Context, code string) (*OIDCClaims, error)
 }
 
 type OIDCClaims struct {
@@ -82,6 +83,9 @@ func (c *OIDCClient) AuthCodeURL(state string) string {
 }
 
 func (c *OIDCClient) ExchangeAndVerify(ctx context.Context, code string) (*OIDCClaims, error) {
+	if c.ExchangeFunc != nil {
+		return c.ExchangeFunc(ctx, code)
+	}
 	if !c.Enabled {
 		return nil, fmt.Errorf("OIDC is not enabled")
 	}

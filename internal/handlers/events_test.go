@@ -21,6 +21,7 @@ func TestIngestionBusPubSub(t *testing.T) {
 
 	event := IngestionEvent{
 		Timestamp:  time.Now(),
+		UserID:     1,
 		DeviceID:   1,
 		DeviceName: "Pixel 8",
 		Source:     "companion-app",
@@ -60,6 +61,7 @@ func TestStreamIngestionHeadersAndHydration(t *testing.T) {
 	// Seed 1 event
 	bus.Publish(IngestionEvent{
 		Timestamp:  time.Now(),
+		UserID:     1,
 		DeviceID:   2,
 		DeviceName: "Galaxy Tab",
 		Source:     "health_connect",
@@ -72,7 +74,10 @@ func TestStreamIngestionHeadersAndHydration(t *testing.T) {
 
 	app := fiber.New()
 	handler := NewEventsHandler(bus)
-	app.Get("/events/ingestion", handler.StreamIngestion)
+	app.Get("/events/ingestion", func(c fiber.Ctx) error {
+		c.Locals("userID", uint(1))
+		return c.Next()
+	}, handler.StreamIngestion)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -107,5 +112,58 @@ func TestStreamIngestionHeadersAndHydration(t *testing.T) {
 
 	if ev.DeviceName != "Galaxy Tab" {
 		t.Errorf("expected Galaxy Tab, got: %s", ev.DeviceName)
+	}
+}
+
+func TestStreamIngestionUserScoping(t *testing.T) {
+	bus := NewIngestionBus()
+
+	// Publish events for user 1 and user 2
+	bus.Publish(IngestionEvent{
+		Timestamp:  time.Now(),
+		UserID:     1,
+		DeviceID:   10,
+		DeviceName: "User 1 Phone",
+		Status:     "PAYLOAD_OK",
+	})
+	bus.Publish(IngestionEvent{
+		Timestamp:  time.Now(),
+		UserID:     2,
+		DeviceID:   20,
+		DeviceName: "User 2 Phone",
+		Status:     "PAYLOAD_OK",
+	})
+
+	app := fiber.New()
+	handler := NewEventsHandler(bus)
+	app.Get("/events/ingestion", func(c fiber.Ctx) error {
+		c.Locals("userID", uint(1))
+		return c.Next()
+	}, handler.StreamIngestion)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/events/ingestion", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 500 * time.Millisecond})
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	reader := bufio.NewReader(resp.Body)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		t.Fatalf("failed to read line: %v", err)
+	}
+
+	jsonStr := strings.TrimSpace(strings.TrimPrefix(line, "data: "))
+	var ev IngestionEvent
+	if err := json.Unmarshal([]byte(jsonStr), &ev); err != nil {
+		t.Fatalf("failed to unmarshal SSE event: %v", err)
+	}
+
+	if ev.UserID != 1 || ev.DeviceName != "User 1 Phone" {
+		t.Errorf("expected User 1 Phone event for user 1, got %+v", ev)
 	}
 }

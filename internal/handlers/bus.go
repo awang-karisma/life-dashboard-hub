@@ -7,6 +7,7 @@ import (
 
 type IngestionEvent struct {
 	Timestamp  time.Time `json:"timestamp"`
+	UserID     uint      `json:"user_id"`
 	DeviceID   uint      `json:"device_id"`
 	DeviceName string    `json:"device_name"`
 	Source     string    `json:"source"`

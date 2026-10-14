@@ -109,16 +109,16 @@ func (h *FamiliesHandler) CreateFamily(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "family name is required"})
 	}
 
-	var existingCount int64
-	h.DB.Model(&models.FamilyMembership{}).Where("user_id = ? AND status = 'active'", userID).Count(&existingCount)
-	if existingCount > 0 {
-		return c.Status(fiber.StatusConflict).JSON(ErrorResponse{Error: "you already belong to a family"})
-	}
-
 	var family models.Family
 	var membership models.FamilyMembership
 
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		var existingCount int64
+		tx.Model(&models.FamilyMembership{}).Where("user_id = ? AND status = 'active'", userID).Count(&existingCount)
+		if existingCount > 0 {
+			return errors.New("already belongs to a family")
+		}
+
 		family = models.Family{
 			Name:      req.Name,
 			CreatedBy: userID,
@@ -148,6 +148,9 @@ func (h *FamiliesHandler) CreateFamily(c fiber.Ctx) error {
 	})
 
 	if err != nil {
+		if err.Error() == "already belongs to a family" {
+			return c.Status(fiber.StatusConflict).JSON(ErrorResponse{Error: "you already belong to a family"})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: "failed to create family"})
 	}
 
@@ -319,8 +322,12 @@ func (h *FamiliesHandler) DeleteFamily(c fiber.Ctx) error {
 			return err
 		}
 
-		_ = tx.Where("family_id = ?", familyID).Delete(&models.Invitation{}).Error
-		_ = tx.Where("family_id = ?", familyID).Delete(&models.FamilySettings{}).Error
+		if err := tx.Where("family_id = ?", familyID).Delete(&models.Invitation{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("family_id = ?", familyID).Delete(&models.FamilySettings{}).Error; err != nil {
+			return err
+		}
 
 		return tx.Delete(&models.Family{}, familyID).Error
 	})
@@ -518,6 +525,15 @@ func (h *FamiliesHandler) AcceptInvitation(c fiber.Ctx) error {
 	now := time.Now().UTC()
 	if invitation.Status != "pending" || invitation.ExpiresAt.Before(now) {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "invitation is expired or already used"})
+	}
+
+	// Verify accepting user's email matches invitation
+	var user models.User
+	if err := h.DB.First(&user, userID).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: "failed to look up user"})
+	}
+	if invitation.InvitedEmail != "" && strings.ToLower(user.Email) != strings.ToLower(invitation.InvitedEmail) {
+		return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{Error: "this invitation was sent to a different email address"})
 	}
 
 	var errAlreadyMember = errors.New("already a member of another family")
@@ -796,6 +812,11 @@ func (h *FamiliesHandler) checkMemberReportAccess(callerID uint, familyID, targe
 		if callerMembership.Role == "parent" || callerMembership.Role == "admin" {
 			return nil
 		}
+	}
+
+	// Admin/parent can view any member's data regardless of sharing setting
+	if callerMembership.Role == "parent" || callerMembership.Role == "admin" {
+		return nil
 	}
 
 	// Adult member: check sharing level
