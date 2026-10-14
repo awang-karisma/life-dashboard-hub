@@ -20,6 +20,10 @@ interface AuthInfo {
 export function Login() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
+  const inviteToken = () => {
+    const inv = params.invite;
+    return Array.isArray(inv) ? inv[0] : inv;
+  };
   const [email, setEmail] = createSignal('');
   const [password, setPassword] = createSignal('');
   const [loading, setLoading] = createSignal(false);
@@ -30,7 +34,8 @@ export function Login() {
 
   onMount(async () => {
     if (params.oidc_login === 'success') {
-      navigate('/');
+      const token = inviteToken();
+      navigate(token ? `/invite/${token}` : '/');
       return;
     }
 
@@ -52,7 +57,8 @@ export function Login() {
         password: password(),
       });
       showToast('Logged in successfully', 'success');
-      navigate('/');
+      const token = inviteToken();
+      navigate(token ? `/invite/${token}` : '/');
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : 'Login failed', 'error');
     } finally {
@@ -129,7 +135,10 @@ export function Login() {
 
         <div class="text-center mt-6 text-xs text-text-muted">
           Need an account?{' '}
-          <A href="/register" class="text-primary-light hover:text-primary font-semibold no-underline">
+          <A
+            href={inviteToken() ? `/register?invite=${encodeURIComponent(inviteToken()!)}` : '/register'}
+            class="text-primary-light hover:text-primary font-semibold no-underline"
+          >
             Create account
           </A>
         </div>

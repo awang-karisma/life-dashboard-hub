@@ -13,6 +13,7 @@ import { ScreenTimeReport } from './routes/ScreenTimeReport';
 import { HealthReport } from './routes/HealthReport';
 import { Family } from './routes/Family';
 import { Settings } from './routes/Settings';
+import { AcceptInvite } from './routes/AcceptInvite';
 
 interface CurrentUser {
   id: number;
@@ -62,6 +63,7 @@ export function App() {
     <Router>
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/invite/:token" component={AcceptInvite} />
       <Route path="/" component={MainLayout}>
         <Route path="/" component={Dashboard} />
         <Route path="/devices" component={Devices} />

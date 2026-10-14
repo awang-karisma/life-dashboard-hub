@@ -86,6 +86,13 @@ type InvitationResponse struct {
 	InviteToken  string    `json:"invite_token,omitempty"`
 }
 
+type InvitationPreviewResponse struct {
+	FamilyName   string    `json:"family_name"`
+	InvitedEmail string    `json:"invited_email"`
+	Role         string    `json:"role"`
+	ExpiresAt    time.Time `json:"expires_at"`
+}
+
 // CreateFamily godoc
 // @Summary      Create a new family group
 // @Description  Creates a family and makes current user admin
@@ -494,6 +501,45 @@ func (h *FamiliesHandler) InviteMember(c fiber.Ctx) error {
 		Status:       invitation.Status,
 		ExpiresAt:    invitation.ExpiresAt,
 		InviteToken:  rawToken,
+	})
+}
+
+// PreviewInvitation godoc
+// @Summary      Preview a family invitation
+// @Description  Get public details of an invitation token
+// @Tags         families
+// @Produce      json
+// @Param        token path string true "Invitation token"
+// @Success      200 {object} InvitationPreviewResponse
+// @Failure      400 {object} ErrorResponse
+// @Failure      404 {object} ErrorResponse
+// @Failure      410 {object} ErrorResponse
+// @Router       /invitations/{token}/preview [get]
+func (h *FamiliesHandler) PreviewInvitation(c fiber.Ctx) error {
+	token := c.Params("token")
+	if token == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: "token required"})
+	}
+
+	hHash := sha256.New()
+	hHash.Write([]byte(token))
+	tokenHash := hex.EncodeToString(hHash.Sum(nil))
+
+	var invitation models.Invitation
+	if err := h.DB.Preload("Family").Where("token_hash = ?", tokenHash).First(&invitation).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(ErrorResponse{Error: "invitation not found"})
+	}
+
+	now := time.Now().UTC()
+	if invitation.Status != "pending" || invitation.ExpiresAt.Before(now) {
+		return c.Status(fiber.StatusGone).JSON(ErrorResponse{Error: "invitation is expired or already used"})
+	}
+
+	return c.JSON(InvitationPreviewResponse{
+		FamilyName:   invitation.Family.Name,
+		InvitedEmail: invitation.InvitedEmail,
+		Role:         invitation.Role,
+		ExpiresAt:    invitation.ExpiresAt,
 	})
 }
 

@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -45,10 +47,11 @@ func setupFamilyTestApp(t *testing.T) (*fiber.App, *database.DB, *auth.SessionSe
 
 	app := fiber.New()
 	api := app.Group("/api/v1")
-	protected := api.Group("", middleware.RequireAuth(sessionService))
-
 	reportsHandler := NewReportsHandler(db, nil)
 	familiesHandler := NewFamiliesHandler(db, reportsHandler)
+
+	api.Get("/invitations/:token/preview", familiesHandler.PreviewInvitation)
+	protected := api.Group("", middleware.RequireAuth(sessionService))
 
 	familiesGroup := protected.Group("/families")
 	familiesGroup.Post("", familiesHandler.CreateFamily)
@@ -606,5 +609,91 @@ func TestInvitationEmailValidation(t *testing.T) {
 	intendedResp, _ := app.Test(intendedReq)
 	if intendedResp.StatusCode != 200 {
 		t.Errorf("expected 200 for intended email accepting invitation, got %d", intendedResp.StatusCode)
+	}
+}
+
+func TestInvitationPreview(t *testing.T) {
+	app, db, _, _, _, parentCookie, _ := setupFamilyTestApp(t)
+
+	// 1. Create family
+	createReq := httptest.NewRequest("POST", "/api/v1/families", strings.NewReader(`{"name": "Preview Fam"}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq.AddCookie(&http.Cookie{Name: "session", Value: parentCookie})
+	createResp, err := app.Test(createReq)
+	if err != nil {
+		t.Fatalf("failed to create family: %v", err)
+	}
+	var famResp FamilyResponse
+	_ = json.NewDecoder(createResp.Body).Decode(&famResp)
+
+	// 2. Create invitation
+	inviteReq := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/families/%d/invitations", famResp.ID), strings.NewReader(`{"email": "preview@example.com", "role": "adult"}`))
+	inviteReq.Header.Set("Content-Type", "application/json")
+	inviteReq.AddCookie(&http.Cookie{Name: "session", Value: parentCookie})
+	inviteResp, err := app.Test(inviteReq)
+	if err != nil {
+		t.Fatalf("failed to invite: %v", err)
+	}
+	var invResp InvitationResponse
+	_ = json.NewDecoder(inviteResp.Body).Decode(&invResp)
+	inviteToken := invResp.InviteToken
+
+	// 3. Unauthenticated preview of valid token -> 200 OK
+	previewReq := httptest.NewRequest("GET", "/api/v1/invitations/"+inviteToken+"/preview", nil)
+	previewResp, err := app.Test(previewReq)
+	if err != nil {
+		t.Fatalf("failed to preview: %v", err)
+	}
+	if previewResp.StatusCode != 200 {
+		t.Fatalf("expected 200 preview, got %d", previewResp.StatusCode)
+	}
+	var previewData InvitationPreviewResponse
+	_ = json.NewDecoder(previewResp.Body).Decode(&previewData)
+	if previewData.FamilyName != "Preview Fam" {
+		t.Errorf("expected family_name 'Preview Fam', got %q", previewData.FamilyName)
+	}
+	if previewData.InvitedEmail != "preview@example.com" {
+		t.Errorf("expected invited_email 'preview@example.com', got %q", previewData.InvitedEmail)
+	}
+	if previewData.Role != "adult" {
+		t.Errorf("expected role 'adult', got %q", previewData.Role)
+	}
+	if previewData.ExpiresAt.IsZero() {
+		t.Errorf("expected non-zero expires_at")
+	}
+
+	// 4. Non-existent token -> 404
+	notFoundReq := httptest.NewRequest("GET", "/api/v1/invitations/nonexistenttoken/preview", nil)
+	notFoundResp, _ := app.Test(notFoundReq)
+	if notFoundResp.StatusCode != 404 {
+		t.Errorf("expected 404 for nonexistent token, got %d", notFoundResp.StatusCode)
+	}
+
+	// 5. Expired token -> 410
+	var inv models.Invitation
+	hHash := sha256.New()
+	hHash.Write([]byte(inviteToken))
+	tokenHash := hex.EncodeToString(hHash.Sum(nil))
+	if err := db.Where("token_hash = ?", tokenHash).First(&inv).Error; err != nil {
+		t.Fatalf("failed to find invitation in db: %v", err)
+	}
+	inv.ExpiresAt = time.Now().UTC().Add(-1 * time.Hour)
+	db.Save(&inv)
+
+	expiredReq := httptest.NewRequest("GET", "/api/v1/invitations/"+inviteToken+"/preview", nil)
+	expiredResp, _ := app.Test(expiredReq)
+	if expiredResp.StatusCode != 410 {
+		t.Errorf("expected 410 for expired token, got %d", expiredResp.StatusCode)
+	}
+
+	// 6. Already used token -> 410
+	inv.ExpiresAt = time.Now().UTC().Add(24 * time.Hour)
+	inv.Status = "accepted"
+	db.Save(&inv)
+
+	usedReq := httptest.NewRequest("GET", "/api/v1/invitations/"+inviteToken+"/preview", nil)
+	usedResp, _ := app.Test(usedReq)
+	if usedResp.StatusCode != 410 {
+		t.Errorf("expected 410 for accepted token, got %d", usedResp.StatusCode)
 	}
 }

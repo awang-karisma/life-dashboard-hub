@@ -1221,6 +1221,53 @@ const docTemplate = `{
                 }
             }
         },
+        "/invitations/{token}/preview": {
+            "get": {
+                "description": "Get public details of an invitation token",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "families"
+                ],
+                "summary": "Preview a family invitation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Invitation token",
+                        "name": "token",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.InvitationPreviewResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/reports/health/daily": {
             "get": {
                 "description": "Daily aggregated steps, distance, and calories",
@@ -1904,6 +1951,23 @@ const docTemplate = `{
                 },
                 "steps": {
                     "type": "integer"
+                }
+            }
+        },
+        "handlers.InvitationPreviewResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "family_name": {
+                    "type": "string"
+                },
+                "invited_email": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
                 }
             }
         },

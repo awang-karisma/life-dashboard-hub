@@ -162,6 +162,17 @@ definitions:
       steps:
         type: integer
     type: object
+  handlers.InvitationPreviewResponse:
+    properties:
+      expires_at:
+        type: string
+      family_name:
+        type: string
+      invited_email:
+        type: string
+      role:
+        type: string
+    type: object
   handlers.InvitationResponse:
     properties:
       expires_at:
@@ -1171,6 +1182,37 @@ paths:
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
       summary: Accept a family invitation
+      tags:
+      - families
+  /invitations/{token}/preview:
+    get:
+      description: Get public details of an invitation token
+      parameters:
+      - description: Invitation token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.InvitationPreviewResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "410":
+          description: Gone
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Preview a family invitation
       tags:
       - families
   /reports/health/daily:

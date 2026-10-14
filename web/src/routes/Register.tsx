@@ -1,5 +1,5 @@
 import { createSignal } from 'solid-js';
-import { A, useNavigate } from '@solidjs/router';
+import { A, useNavigate, useSearchParams } from '@solidjs/router';
 import {
   IconLayoutDashboard,
   IconUserPlus,
@@ -9,6 +9,11 @@ import { showToast } from '../components/Toast';
 
 export function Register() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const inviteToken = () => {
+    const inv = params.invite;
+    return Array.isArray(inv) ? inv[0] : inv;
+  };
   const [email, setEmail] = createSignal('');
   const [displayName, setDisplayName] = createSignal('');
   const [password, setPassword] = createSignal('');
@@ -37,7 +42,8 @@ export function Register() {
       });
 
       showToast('Account created and signed in', 'success');
-      navigate('/');
+      const token = inviteToken();
+      navigate(token ? `/invite/${token}` : '/');
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : 'Registration failed', 'error');
     } finally {
@@ -113,7 +119,10 @@ export function Register() {
 
         <div class="text-center mt-6 text-xs text-text-muted">
           Already have an account?{' '}
-          <A href="/login" class="text-primary-light hover:text-primary font-semibold no-underline">
+          <A
+            href={inviteToken() ? `/login?invite=${encodeURIComponent(inviteToken()!)}` : '/login'}
+            class="text-primary-light hover:text-primary font-semibold no-underline"
+          >
             Sign in
           </A>
         </div>

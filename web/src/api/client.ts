@@ -22,7 +22,9 @@ export class ApiClient {
     });
 
     if (res.status === 401) {
-      if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/register')) {
+      if (!window.location.pathname.startsWith('/login')
+        && !window.location.pathname.startsWith('/register')
+        && !window.location.pathname.startsWith('/invite')) {
         window.location.href = '/login';
       }
       throw new Error('Unauthorized');

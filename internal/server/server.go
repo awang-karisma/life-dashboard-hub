@@ -101,6 +101,11 @@ func (s *Server) setupRoutes() {
 	authGroup.Post("/logout", authHandler.Logout)
 	authGroup.Get("/oidc/login", authHandler.OIDCLogin)
 	authGroup.Get("/oidc/callback", authHandler.OIDCCallback)
+
+	// Reports & Families handlers
+	reportsHandler := handlers.NewReportsHandler(s.DB, s.Resolver)
+	familiesHandler := handlers.NewFamiliesHandler(s.DB, reportsHandler)
+	api.Get("/invitations/:token/preview", familiesHandler.PreviewInvitation)
 	// Protected API routes
 	protected := api.Group("", middleware.RequireAuth(s.SessionService))
 
@@ -117,7 +122,6 @@ func (s *Server) setupRoutes() {
 
 	// User profile handlers
 	// Reports handlers
-	reportsHandler := handlers.NewReportsHandler(s.DB, s.Resolver)
 	reportsGroup := protected.Group("/reports")
 	reportsGroup.Get("/screen-time/daily", reportsHandler.GetScreenTimeDaily)
 	reportsGroup.Get("/screen-time/apps", reportsHandler.GetScreenTimeApps)
@@ -132,7 +136,6 @@ func (s *Server) setupRoutes() {
 	dataGroup.Get("/export", reportsHandler.ExportData)
 	dataGroup.Delete("", reportsHandler.DeleteData)
 	// Families handlers
-	familiesHandler := handlers.NewFamiliesHandler(s.DB, reportsHandler)
 	familiesGroup := protected.Group("/families")
 	familiesGroup.Post("", familiesHandler.CreateFamily)
 	familiesGroup.Get("", familiesHandler.ListFamilies)
