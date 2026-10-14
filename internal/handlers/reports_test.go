@@ -165,7 +165,57 @@ func TestScreenTimeReportMultiDevice(t *testing.T) {
 	if day0.DeviceCount != 2 {
 		t.Errorf("expected 2 devices, got %d", day0.DeviceCount)
 	}
+	if len(day0.DeviceBreakdown) != 2 {
+		t.Fatalf("expected 2 entries in DeviceBreakdown, got %d", len(day0.DeviceBreakdown))
+	}
+	if day0.DeviceBreakdown[d1.ID] != 100 {
+		t.Errorf("expected device %d breakdown 100, got %d", d1.ID, day0.DeviceBreakdown[d1.ID])
+	}
+	if day0.DeviceBreakdown[d2.ID] != 50 {
+		t.Errorf("expected device %d breakdown 50, got %d", d2.ID, day0.DeviceBreakdown[d2.ID])
+	}
 
+	// Verify deduplicated device_usage
+	if len(dailyResp.DeviceUsage) != 2 {
+		t.Fatalf("expected 2 device_usage entries, got %d", len(dailyResp.DeviceUsage))
+	}
+	for _, du := range dailyResp.DeviceUsage {
+		if du.DeviceName == "" {
+			t.Errorf("expected non-empty device name for device %d", du.DeviceID)
+		}
+	}
+	if dailyResp.DeviceUsage[0].DeviceID != d1.ID || dailyResp.DeviceUsage[0].DeviceName != "Pixel Phone" || dailyResp.DeviceUsage[0].TotalMinutes != 910 {
+		t.Errorf("unexpected device_usage[0]: %+v", dailyResp.DeviceUsage[0])
+	}
+	if dailyResp.DeviceUsage[1].DeviceID != d2.ID || dailyResp.DeviceUsage[1].DeviceName != "Pixel Tablet" || dailyResp.DeviceUsage[1].TotalMinutes != 455 {
+		t.Errorf("unexpected device_usage[1]: %+v", dailyResp.DeviceUsage[1])
+	}
+
+	// Verify device filter query (?device_id=d1.ID)
+	reqFilter := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/reports/screen-time/daily?from=2026-10-01&to=2026-10-07&device_id=%d", d1.ID), nil)
+	reqFilter.AddCookie(&http.Cookie{Name: "session", Value: sessionCookie})
+	respFilter, err := app.Test(reqFilter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer respFilter.Body.Close()
+	if respFilter.StatusCode != 200 {
+		t.Fatalf("expected 200 for filtered query, got %d", respFilter.StatusCode)
+	}
+	var filterResp ScreenTimeDailyResponse
+	_ = json.NewDecoder(respFilter.Body).Decode(&filterResp)
+	if len(filterResp.DeviceUsage) != 1 {
+		t.Fatalf("expected 1 device_usage entry when filtered, got %d", len(filterResp.DeviceUsage))
+	}
+	if filterResp.DeviceUsage[0].DeviceID != d1.ID || filterResp.DeviceUsage[0].DeviceName != "Pixel Phone" || filterResp.DeviceUsage[0].TotalMinutes != 910 {
+		t.Errorf("unexpected filtered device_usage: %+v", filterResp.DeviceUsage[0])
+	}
+	if len(filterResp.Days) != 7 {
+		t.Fatalf("expected 7 days when filtered, got %d", len(filterResp.Days))
+	}
+	if filterResp.Days[0].TotalScreenTimeMinutes != 100 {
+		t.Errorf("expected single-device day 0 total 100, got %d", filterResp.Days[0].TotalScreenTimeMinutes)
+	}
 	// Verify per-app breakdown
 	reqApps := httptest.NewRequest("GET", "/api/v1/reports/screen-time/apps?from=2026-10-01&to=2026-10-07", nil)
 	reqApps.AddCookie(&http.Cookie{Name: "session", Value: sessionCookie})

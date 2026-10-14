@@ -1813,26 +1813,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handlers.DeviceDaySummary": {
-            "type": "object",
-            "properties": {
-                "date": {
-                    "type": "string"
-                },
-                "device_id": {
-                    "type": "integer"
-                },
-                "device_model": {
-                    "type": "string"
-                },
-                "filtered_screen_time_minutes": {
-                    "type": "integer"
-                },
-                "total_screen_time_minutes": {
-                    "type": "integer"
-                }
-            }
-        },
         "handlers.DeviceResponse": {
             "type": "object",
             "properties": {
@@ -1870,6 +1850,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.DeviceUsageSummary": {
+            "type": "object",
+            "properties": {
+                "device_id": {
+                    "type": "integer"
+                },
+                "device_name": {
+                    "type": "string"
+                },
+                "total_minutes": {
                     "type": "integer"
                 }
             }
@@ -2068,7 +2062,7 @@ const docTemplate = `{
                 "device_usage": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handlers.DeviceDaySummary"
+                        "$ref": "#/definitions/handlers.DeviceUsageSummary"
                     }
                 },
                 "from": {
@@ -2084,6 +2078,13 @@ const docTemplate = `{
             "properties": {
                 "date": {
                     "type": "string"
+                },
+                "device_breakdown": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
                 },
                 "device_count": {
                     "type": "integer"

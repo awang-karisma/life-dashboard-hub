@@ -55,22 +55,21 @@ type ScreenTimeDailyResponse struct {
 	From        string                 `json:"from"`
 	To          string                 `json:"to"`
 	Days        []ScreenTimeDaySummary `json:"days"`
-	DeviceUsage []DeviceDaySummary     `json:"device_usage"`
+	DeviceUsage []DeviceUsageSummary   `json:"device_usage"`
 }
 
 type ScreenTimeDaySummary struct {
-	Date                   string `json:"date"`
-	TotalScreenTimeMinutes int64  `json:"total_screen_time_minutes"` // Total reported device usage across devices
-	FilteredMinutes        int64  `json:"filtered_screen_time_minutes"`
-	DeviceCount            int    `json:"device_count"`
+	Date                   string         `json:"date"`
+	TotalScreenTimeMinutes int64          `json:"total_screen_time_minutes"` // Total reported device usage across devices
+	FilteredMinutes        int64          `json:"filtered_screen_time_minutes"`
+	DeviceCount            int            `json:"device_count"`
+	DeviceBreakdown        map[uint]int64 `json:"device_breakdown,omitempty"`
 }
 
-type DeviceDaySummary struct {
-	DeviceID               uint   `json:"device_id"`
-	DeviceModel            string `json:"device_model"`
-	Date                   string `json:"date"`
-	TotalScreenTimeMinutes int64  `json:"total_screen_time_minutes"`
-	FilteredMinutes        int64  `json:"filtered_screen_time_minutes"`
+type DeviceUsageSummary struct {
+	DeviceID     uint   `json:"device_id"`
+	DeviceName   string `json:"device_name"`
+	TotalMinutes int64  `json:"total_minutes"`
 }
 
 type AppUsageSummary struct {
@@ -150,7 +149,21 @@ func (h *ReportsHandler) GetScreenTimeDaily(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Error: err.Error()})
 	}
 	if len(deviceIDs) == 0 {
-		return c.JSON(ScreenTimeDailyResponse{From: from, To: to, Days: []ScreenTimeDaySummary{}, DeviceUsage: []DeviceDaySummary{}})
+		return c.JSON(ScreenTimeDailyResponse{From: from, To: to, Days: []ScreenTimeDaySummary{}, DeviceUsage: []DeviceUsageSummary{}})
+	}
+
+	var deviceRecords []models.Device
+	_ = h.DB.Where("id IN (?)", deviceIDs).Find(&deviceRecords).Error
+	deviceNameMap := make(map[uint]string, len(deviceRecords))
+	for _, d := range deviceRecords {
+		name := d.DisplayName
+		if name == "" {
+			name = d.Label
+		}
+		if name == "" {
+			name = d.DeviceModel
+		}
+		deviceNameMap[d.ID] = name
 	}
 
 	query := h.DB.Where("type = 'screen_time' AND device_id IN (?)", deviceIDs)
@@ -182,7 +195,7 @@ func (h *ReportsHandler) GetScreenTimeDaily(c fiber.Ctx) error {
 
 	// Aggregate per day and device
 	dayMap := make(map[string]*ScreenTimeDaySummary)
-	var deviceUsage []DeviceDaySummary
+	deviceAggMap := make(map[uint]*DeviceUsageSummary)
 
 	for _, r := range deduped {
 		dayStr := *r.Day
@@ -198,22 +211,34 @@ func (h *ReportsHandler) GetScreenTimeDaily(c fiber.Ctx) error {
 			filteredMinutes = int64(val)
 		}
 
-		deviceUsage = append(deviceUsage, DeviceDaySummary{
-			DeviceID:               r.DeviceID,
-			DeviceModel:            r.DeviceModel,
-			Date:                   dayStr,
-			TotalScreenTimeMinutes: totalMinutes,
-			FilteredMinutes:        filteredMinutes,
-		})
-
 		if _, exists := dayMap[dayStr]; !exists {
 			dayMap[dayStr] = &ScreenTimeDaySummary{
-				Date: dayStr,
+				Date:            dayStr,
+				DeviceBreakdown: make(map[uint]int64),
 			}
 		}
 		dayMap[dayStr].TotalScreenTimeMinutes += totalMinutes
 		dayMap[dayStr].FilteredMinutes += filteredMinutes
 		dayMap[dayStr].DeviceCount++
+		dayMap[dayStr].DeviceBreakdown[r.DeviceID] = totalMinutes
+
+		devName := deviceNameMap[r.DeviceID]
+		if devName == "" {
+			devName = r.DeviceModel
+		}
+		if devName == "" {
+			devName = fmt.Sprintf("Device %d", r.DeviceID)
+		}
+
+		if agg, ok := deviceAggMap[r.DeviceID]; ok {
+			agg.TotalMinutes += totalMinutes
+		} else {
+			deviceAggMap[r.DeviceID] = &DeviceUsageSummary{
+				DeviceID:     r.DeviceID,
+				DeviceName:   devName,
+				TotalMinutes: totalMinutes,
+			}
+		}
 	}
 
 	days := make([]ScreenTimeDaySummary, 0, len(dayMap))
@@ -224,11 +249,19 @@ func (h *ReportsHandler) GetScreenTimeDaily(c fiber.Ctx) error {
 		return days[i].Date < days[j].Date
 	})
 
+	dedupedUsage := make([]DeviceUsageSummary, 0, len(deviceAggMap))
+	for _, agg := range deviceAggMap {
+		dedupedUsage = append(dedupedUsage, *agg)
+	}
+	sort.Slice(dedupedUsage, func(i, j int) bool {
+		return dedupedUsage[i].DeviceID < dedupedUsage[j].DeviceID
+	})
+
 	return c.JSON(ScreenTimeDailyResponse{
 		From:        from,
 		To:          to,
 		Days:        days,
-		DeviceUsage: deviceUsage,
+		DeviceUsage: dedupedUsage,
 	})
 }
 

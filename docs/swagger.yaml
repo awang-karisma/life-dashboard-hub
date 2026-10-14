@@ -70,19 +70,6 @@ definitions:
       webhook_url:
         type: string
     type: object
-  handlers.DeviceDaySummary:
-    properties:
-      date:
-        type: string
-      device_id:
-        type: integer
-      device_model:
-        type: string
-      filtered_screen_time_minutes:
-        type: integer
-      total_screen_time_minutes:
-        type: integer
-    type: object
   handlers.DeviceResponse:
     properties:
       collector_version:
@@ -108,6 +95,15 @@ definitions:
       status:
         type: string
       user_id:
+        type: integer
+    type: object
+  handlers.DeviceUsageSummary:
+    properties:
+      device_id:
+        type: integer
+      device_name:
+        type: string
+      total_minutes:
         type: integer
     type: object
   handlers.ErrorResponse:
@@ -236,7 +232,7 @@ definitions:
         type: array
       device_usage:
         items:
-          $ref: '#/definitions/handlers.DeviceDaySummary'
+          $ref: '#/definitions/handlers.DeviceUsageSummary'
         type: array
       from:
         type: string
@@ -247,6 +243,11 @@ definitions:
     properties:
       date:
         type: string
+      device_breakdown:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
       device_count:
         type: integer
       filtered_screen_time_minutes:
